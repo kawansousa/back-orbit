@@ -4,9 +4,13 @@ const Loja = require('../models/lojas.model');
 exports.createLoja = async (req, res) => {
   try {
     const { lojasNome, empresas } = req.body;
+
     const novaLoja = new Loja({ lojasNome, empresas });
+
     await novaLoja.save();
+
     res.status(201).json(novaLoja);
+    
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

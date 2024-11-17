@@ -1,18 +1,82 @@
 const User = require('../models/user.model');
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
 
-// Criar novo usuário
 exports.createUser = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, aceso_loja, type, permissions } = req.body;
+
   try {
-    const user = new User({ name, email, password });
+    // Verifica se o usuário já existe pelo email
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Usuário já cadastrado' });
+    }
+
+    // Gera o hash da senha
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Cria o novo usuário com todos os campos
+    const user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      aceso_loja,
+      type,
+      permissions
+    });
 
     await user.save();
-    res.status(201).json(user);
+
+    // Gera um token JWT sem expiração
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET // Certifique-se de definir JWT_SECRET no arquivo .env
+    );
+
+    // Retorna o usuário e o token
+    res.status(201).json({ user, token });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+exports.loginUser = async (req, res) => {
+  try {
+    const { email, senha } = req.body;
+
+    // Busca o usuário no banco de dados pelo email
+    const user = await User.findOne({ email });
+
+    // Verifica se o usuário foi encontrado
+    if (!user) {
+      return res.status(404).json({ message: 'Usuário não encontrado' });
+    }
+
+    // Compara a senha fornecida com a senha criptografada no banco (campo correto é `password`)
+    const isMatch = await bcrypt.compare(senha, user.password);
+
+    // Verifica se a senha está correta
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Senha inválida' });
+    }
+
+    // Gera um token JWT
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET
+    );
+
+    // Remove a senha do objeto de resposta
+    const { password, ...userWithoutPassword } = user.toObject();
+
+    // Retorna o token e os detalhes do usuário
+    res.status(200).json({ token, user: userWithoutPassword });
+  } catch (err) {
+    console.error(err); // Adiciona um log para verificar o erro exato
+    res.status(500).json({ message: 'Erro, tente novamente' });
+  }
+};
 // Listar todos os usuários
 exports.getUsers = async (req, res) => {
   try {

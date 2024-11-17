@@ -2,11 +2,11 @@ const mongoose = require('mongoose');
 const AutoIncrement = require('mongoose-sequence')(mongoose);
 
 const empresaSchema = new mongoose.Schema({
-  id: {
+  codigo_empresa: {
     type: Number,
     unique: true,
   },
-  nome: {
+  razao: {
     type: String,
     required: true,
   },
@@ -15,7 +15,14 @@ const empresaSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
-  telefone: {
+  ie: {
+    type: String,
+    required: true,
+  },
+  fone: {
+    type: String,
+  },
+  fone_secundario: {
     type: String,
   },
   email: {
@@ -31,9 +38,7 @@ const empresaSchema = new mongoose.Schema({
   },
   inscricaoEstadual: { type: String },
   inscricaoMunicipal: { type: String },
-  razaoSocial: { type: String },
-  nomeFantasia: { type: String },
-  createdAt: {
+  data_criacao_filiao: {
     type: Date,
     default: Date.now,
   },
@@ -41,14 +46,30 @@ const empresaSchema = new mongoose.Schema({
 
 // Definir o schema da loja que inclui várias empresas
 const lojaSchema = new mongoose.Schema({
+  codigo_loja: {
+    type: Number,
+    unique: true,
+  },
   lojasNome: {
     type: String,
     required: true,
   },
+  data_criacao: {
+    type: Date,
+    default: Date.now,
+  },
+  responsavel: {
+    type: String,
+    required: true,
+  },
+  fone_responsavel: {
+    type: String,
+  },
   empresas: [empresaSchema],
 });
 
-empresaSchema.plugin(AutoIncrement, { inc_field: 'id' });
+empresaSchema.plugin(AutoIncrement, { inc_field: 'codigo_empresa' });
+lojaSchema.plugin(AutoIncrement, { inc_field: 'codigo_loja' });
 
 const Loja = mongoose.model('Loja', lojaSchema);
 

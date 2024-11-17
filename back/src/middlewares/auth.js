@@ -1,6 +1,5 @@
-import jwt from "jsonwebtoken"
-
-const JWT_SECREY = process.env.JWT_SECREY
+const jwt = require('jsonwebtoken')
+const JWT_SECRET = process.env.JWT_SECRET
 
 const auth = (req, res, next) => {
   const token = req.headers.authorization
@@ -10,7 +9,7 @@ const auth = (req, res, next) => {
   }
 
   try {
-    const deCoded = jwt.verify(token.replace('Bearer ', ''), JWT_SECREY)
+    const deCoded = jwt.verify(token.replace('Bearer ', ''), JWT_SECRET)
 
     req.userId = deCoded.id
 
@@ -20,4 +19,4 @@ const auth = (req, res, next) => {
   next()
 }
 
-export default auth
+module.exports = auth;

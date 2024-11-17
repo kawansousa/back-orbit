@@ -10,12 +10,20 @@ const empresaSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  nomeFantasia: {
+    type: String,
+    required: true,
+  },
   cnpj: {
     type: String,
     required: true,
     unique: true,
   },
-  ie: {
+  inscricaoEstadual: {
+    type: String,
+    required: true,
+  },
+  inscricaoMunicipal: {
     type: String,
     required: true,
   },
@@ -36,8 +44,6 @@ const empresaSchema = new mongoose.Schema({
     estado: { type: String },
     cep: { type: String },
   },
-  inscricaoEstadual: { type: String },
-  inscricaoMunicipal: { type: String },
   data_criacao_filiao: {
     type: Date,
     default: Date.now,

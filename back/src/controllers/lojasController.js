@@ -1,20 +1,51 @@
 const Loja = require('../models/lojas.model');
+const User = require('../models/user.model');
 
-// Criar uma nova loja com uma empresa
+
 exports.createLoja = async (req, res) => {
+  const { lojasNome, responsavel, fone_responsavel, empresas, userId } = req.body;
+
   try {
-    const { lojasNome, empresas } = req.body;
+    // Criar a nova loja
+    const novaLoja = new Loja({
+      lojasNome,
+      responsavel,
+      fone_responsavel,
+      empresas
+    });
 
-    const novaLoja = new Loja({ lojasNome, empresas });
-
+    // Salvar a loja no banco de dados
     await novaLoja.save();
 
-    res.status(201).json(novaLoja);
+    // Assumindo que o primeiro código de empresa seja o que você deseja associar ao usuário
+    const codigoLoja = novaLoja.codigo_loja;
+    const codigoEmpresa = novaLoja.empresas[0].codigo_empresa;
+
+    // Atualizar o usuário, associando-o à loja e à empresa
+    const user = await User.findById(userId);
+    if (user) {
+      user.acesso_loja.push({
+        codigo_loja: codigoLoja,
+        codigo_empresas: {
+          codigo: codigoEmpresa,
+        },
+      });
+
+      // Salvar as alterações no usuário
+      await user.save();
+    }
+
+    // Retornar a loja criada e as informações do usuário atualizado
+    res.status(201).json({
+      loja: novaLoja,
+      user: user ? user : null
+    });
     
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // Obter todas as lojas
 exports.getLojas = async (req, res) => {

@@ -12,11 +12,6 @@ exports.createUser = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ message: 'Usuário já cadastrado' });
     }
-
-    // Gera o hash da senha
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
     // Cria o novo usuário com todos os campos
     const user = new User({
       name,

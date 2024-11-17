@@ -23,11 +23,13 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  aceso_loja: [acessoEmpresasSchema],
+  acesso_loja: [acessoEmpresasSchema],
+
   type: {
     type: String,
     required: true,
   },
+
   permissions: {
     type: String,
     required: true,

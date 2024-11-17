@@ -3,11 +3,12 @@ const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
 exports.createUser = async (req, res) => {
-  const { name, email, password, aceso_loja, type, permissions } = req.body;
+  const { name, email, password, acesso_loja, type, permissions } = req.body;
 
   try {
     // Verifica se o usuário já existe pelo email
     const existingUser = await User.findOne({ email });
+    
     if (existingUser) {
       return res.status(400).json({ message: 'Usuário já cadastrado' });
     }
@@ -21,19 +22,13 @@ exports.createUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      aceso_loja,
+      acesso_loja,
       type,
       permissions
     });
 
     await user.save();
-
-    // Gera um token JWT sem expiração
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET // Certifique-se de definir JWT_SECRET no arquivo .env
-    );
-
+    
     // Retorna o usuário e o token
     res.status(201).json({ user, token });
   } catch (error) {

@@ -23,9 +23,10 @@ const precosShemas = new mongoose.Schema({
     min: 0,
   },
   ultimos_precos: {
-    ultimo_preco_compra: { type: String },
-    ultimo_cma: { type: String },
-    ultimo_preco_venda: { type: String },
+    ultimo_preco_compra: { type: Number, default: 0 },
+    ultimo_cma: { type: Number, default: 0 },
+    ultimo_preco_venda: { type: Number, default: 0 },
+    ultimo_preco_atacada: { type: Number, default: 0 },
   },
 })
 
@@ -47,24 +48,40 @@ const estoqueShemas = new mongoose.Schema({
   },
   unidade: {
     type: String,
-    enum: ['unidade', 'kg', 'litro', 'caixa'],
+    enum: ['und', 'kg', 'litro', 'cx'],
     required: true,
   },
   minimo_estoque: {
     type: Number,
     default: 0,
-  },
-  data_criacao: {
-    type: Date,
-    default: Date.now,
-  },
+  }
 
 })
 
 const encargosShemas = new mongoose.Schema({
-  cfop: {
-    type: String,
-    required: true,
+  ncm: {
+    type: Number,
+    default: '0'
+  },
+  cest: {
+    type: Number,
+    default: '0'
+  },
+  icms: {
+    type: Number,
+    default: '0'
+  },
+  ipi: {
+    type: Number,
+    default: '0'
+  },
+  pis: {
+    type: Number,
+    default: '0'
+  },
+  cofins: {
+    type: Number,
+    default: '0'
   },
 })
 
@@ -90,9 +107,26 @@ const produtoSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  volume: {
+  status: {
+    type: String,
+    default: 'ativo'
+  },
+  grupo: {
+    type: String,
+  },
+  subgrupo: {
+    type: String,
+  },
+  referencia: {
     type: String,
     required: true,
+  },
+  volume: {
+    type: Number,
+    default: 0
+  },
+  vencimento: {
+    type: Date,
   },
   precos: [precosShemas],
   estoque: [estoqueShemas],

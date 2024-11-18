@@ -8,6 +8,29 @@ const acessoEmpresasSchema = new mongoose.Schema({
     codigo: { type: Number },
   },
 });
+
+
+const configuracoesSchema = new mongoose.Schema({
+  permissoes: {
+    vendas: {
+      desconto_limite: { type: Number, default: 0 },
+      alterar: { type: Boolean, default: true },
+      cancelar: { type: Boolean, default: true },
+    },
+    produtos: {
+      cadastrar: { type: Boolean, default: true },
+      alterar: { type: Boolean, default: true },
+    },
+    receber: { type: Boolean, default: true },
+    pagar: { type: Boolean, default: true },
+    cadastrar: {
+      cliente: { type: Boolean, default: true },
+      fornecedor: { type: Boolean, default: true },
+      usuario: { type: Boolean, default: true },
+    }
+  }
+});
+
 // Definição correta do Schema (sem o "s" no final)
 const userSchema = new mongoose.Schema({
 
@@ -34,6 +57,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  configurações: [configuracoesSchema]
 
 });
 

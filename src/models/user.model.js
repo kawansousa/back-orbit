@@ -10,23 +10,29 @@ const acessoEmpresasSchema = new mongoose.Schema({
 });
 
 
-const configuracoesSchema = new mongoose.Schema({
+const permissionsSchema = new mongoose.Schema({
   permissoes: {
     vendas: {
       desconto_limite: { type: Number, default: 0 },
       alterar: { type: Boolean, default: true },
       cancelar: { type: Boolean, default: true },
     },
-    produtos: {
-      cadastrar: { type: Boolean, default: true },
-      alterar: { type: Boolean, default: true },
-    },
-    receber: { type: Boolean, default: true },
-    pagar: { type: Boolean, default: true },
     cadastrar: {
       cliente: { type: Boolean, default: true },
       fornecedor: { type: Boolean, default: true },
       usuario: { type: Boolean, default: true },
+      produtos: { type: Boolean, default: true },
+    },
+    alterar: {
+      cliente: { type: Boolean, default: true },
+      fornecedor: { type: Boolean, default: true },
+      usuario: { type: Boolean, default: true },
+      produtos: { type: Boolean, default: true },
+    },
+    acessos: {
+      dashboard: { type: Boolean, default: true },
+      receber: { type: Boolean, default: true },
+      pagar: { type: Boolean, default: true },
     }
   }
 });
@@ -52,12 +58,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-
-  permissions: {
-    type: String,
-    required: true,
-  },
-  configurações: [configuracoesSchema]
+  permissions: [permissionsSchema]
 
 });
 

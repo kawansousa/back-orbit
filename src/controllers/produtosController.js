@@ -8,28 +8,17 @@ exports.createProduto = async (req, res) => {
       codigo_empresa,
       codigo_produto, // Atribuído no middleware
       codigo_barras,
+      codigo_fabricante,
       descricao,
       grupo,
       subgrupo,
       referencia,
+      localizacao,
       vencimento,
       precos,
       estoque,
+      encargos,
     } = req.body;
-
-
-    console.log(
-      codigo_loja,
-      codigo_empresa,
-      codigo_produto, // Atribuído no middleware
-      codigo_barras,
-      descricao,
-      grupo,
-      subgrupo,
-      referencia,
-      vencimento,
-      precos,
-      estoque,)
 
 
     // Verificar se os campos obrigatórios estão presentes
@@ -73,13 +62,16 @@ exports.createProduto = async (req, res) => {
       codigo_empresa,
       codigo_produto, // Valor já atribuído pelo middleware
       codigo_barras,
+      codigo_fabricante,
       descricao,
       grupo,
       subgrupo,
       referencia,
       vencimento,
+      localizacao,
       precos,
       estoque,
+      encargos,
     });
 
     await newProduto.save();

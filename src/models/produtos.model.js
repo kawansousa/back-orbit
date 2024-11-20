@@ -48,7 +48,7 @@ const estoqueShemas = new mongoose.Schema({
   },
   unidade: {
     type: String,
-    enum: ['und', 'kg', 'litro', 'cx'],
+    enum: ['UN', 'KG', 'L', 'CX', 'PCT', 'SC', 'TON'],
     required: true,
   },
   minimo_estoque: {
@@ -101,6 +101,9 @@ const produtoSchema = new mongoose.Schema({
   codigo_barras: {
     type: Number,
   },
+  codigo_fabricante: {
+    type: Number,
+  },
   descricao: {
     type: String,
     required: true,
@@ -116,6 +119,9 @@ const produtoSchema = new mongoose.Schema({
     type: String,
   },
   referencia: {
+    type: String,
+  },
+  localizacao: {
     type: String,
   },
   volume: {

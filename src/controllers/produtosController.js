@@ -94,7 +94,7 @@ exports.getProdutos = async (req, res) => {
       page,
       limit,
       searchTerm,
-      searchType // New parameter for specific field search
+      searchType
     } = req.query;
 
     // Verifica se os parâmetros obrigatórios foram fornecidos
@@ -172,8 +172,6 @@ exports.getProdutos = async (req, res) => {
 // Obter produto por ID
 exports.getProdutosById = async (req, res) => {
   try {
-
-
     // Verificar se os parâmetros obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({ error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' });

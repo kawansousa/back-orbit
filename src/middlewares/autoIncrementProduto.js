@@ -17,20 +17,17 @@ async function autoIncrementProduto(req, res, next) {
     const nextCodigoProduto = lastProduct ? lastProduct.codigo_produto + 1 : 1;
 
     // Gerar o código de barras automaticamente se não for passado
-    const codigoBarras = req.body.codigo_barras || `${codigo_loja}${codigo_empresa}${String(nextCodigoProduto).padStart(12, '0')}`;
+    const codigoBarras =
+      req.body.codigo_barras || `${codigo_loja}${codigo_empresa}${String(nextCodigoProduto).padStart(12, '0')}`;
 
     // Adicionar os códigos no request body
     req.body.codigo_produto = nextCodigoProduto;
     req.body.codigo_barras = codigoBarras;
-
-    // Definir o campo lojasNome, se necessário
-    req.body.lojasNome = req.body.lojasNome || null;
 
     next();
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 }
-
 
 module.exports = autoIncrementProduto;

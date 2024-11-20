@@ -3,22 +3,90 @@ const Produto = require('../models/produtos.model');
 
 exports.createProduto = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.body;    
+    const {
+      codigo_loja,
+      codigo_empresa,
+      codigo_produto, // Atribuído no middleware
+      codigo_barras,
+      descricao,
+      grupo,
+      subgrupo,
+      referencia,
+      vencimento,
+      precos,
+      estoque,
+    } = req.body;
 
-    // Verificar se codigo_loja e codigo_empresa estão presentes
+
+    console.log(
+      codigo_loja,
+      codigo_empresa,
+      codigo_produto, // Atribuído no middleware
+      codigo_barras,
+      descricao,
+      grupo,
+      subgrupo,
+      referencia,
+      vencimento,
+      precos,
+      estoque,)
+
+
+    // Verificar se os campos obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
       });
     }
 
+    if (!descricao) {
+      return res.status(400).json({ error: 'A descricao é obrigatória.' });
+    }
+
+    // Verificar duplicidade (descrição ou código de barras)
+    const produtoExistente = await Produto.findOne({
+      codigo_loja,
+      codigo_empresa,
+      $or: [
+        { descricao }, // Verifica a descrição
+        { codigo_barras }, // Verifica o código de barras
+      ],
+    });
+
+    if (produtoExistente) {
+      if (produtoExistente.descricao == descricao) {
+        return res.status(409).json({
+          error: 'Já existe um item cadastrado com essa descrição.',
+        });
+      }
+
+      if (produtoExistente.codigo_barras == codigo_barras) {
+        return res.status(409).json({
+          error: 'Já existe um item cadastrado com esse código de barras.',
+        });
+      }
+    }
+
     // Criar um novo produto com os dados fornecidos
-    const newProduto = new Produto(req.body);
+    const newProduto = new Produto({
+      codigo_loja,
+      codigo_empresa,
+      codigo_produto, // Valor já atribuído pelo middleware
+      codigo_barras,
+      descricao,
+      grupo,
+      subgrupo,
+      referencia,
+      vencimento,
+      precos,
+      estoque,
+    });
+
     await newProduto.save();
 
     res.status(201).json({
       message: 'Produto criado com sucesso',
-      produto: newProduto
+      produto: newProduto,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -112,7 +180,7 @@ exports.getProdutos = async (req, res) => {
 // Obter produto por ID
 exports.getProdutosById = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.query; // ou req.body, dependendo de onde você quer receber os dados
+
 
     // Verificar se os parâmetros obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
@@ -139,21 +207,24 @@ exports.getProdutosById = async (req, res) => {
 };
 
 exports.updateProduto = async (req, res) => {
+  const { codigo_loja, codigo_empresa, descricao } = req.body;
+
   try {
-    const { codigo_loja, codigo_empresa } = req.body; // Ou req.query, dependendo de onde os parâmetros são passados
-
-
-
     // Verificar se os parâmetros obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({ error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' });
     }
 
+    // Verificar se a descrição é válida (não vazia, caso esteja no corpo da requisição)
+    if (descricao !== undefined && descricao.trim() === '') {
+      return res.status(400).json({ error: 'Preencha a descrição' });
+    }
+
     // Atualizar o produto com base no ID, validando também a loja e empresa
     const updatedProduto = await Produto.findOneAndUpdate(
-      { _id: req.params.id, codigo_loja, codigo_empresa },  // Filtra pelo ID, codigo_loja e codigo_empresa
+      { _id: req.params.id, codigo_loja, codigo_empresa }, // Filtra pelo ID, codigo_loja e codigo_empresa
       req.body,
-      { new: true }  // Retorna o documento atualizado
+      { new: true } // Retorna o documento atualizado
     );
 
     // Verificar se o produto foi encontrado e atualizado

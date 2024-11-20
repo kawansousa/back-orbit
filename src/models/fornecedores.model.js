@@ -11,21 +11,8 @@ const enderecoSchema = new mongoose.Schema({
   cep: { type: String },
 }, { _id: false });
 
-// Schema de Conjugue
-const conjugueSchema = new mongoose.Schema({
-  nome: { type: String },
-  apelido: { type: String },
-  cpf: { type: String },
-  cnpj: { type: String },
-  fone: { type: String },
-  fone_secundario: { type: String },
-  email: { type: String },
-  telefone: { type: String },
-  endereco: enderecoSchema,
-}, { _id: false });
-
 // Schema de Cliente
-const clienteSchema = new mongoose.Schema({
+const fornecedorSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
     required: true,
@@ -34,16 +21,17 @@ const clienteSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  codigo_cliente: {
+  codigo_fornecedor: {
     type: Number,
     required: true,
   },
-  nome: {
+  razao: {
     type: String,
     required: true,
   },
-  apelido: {
+  fantasia: {
     type: String,
+    required: true,
   },
   cpf: {
     type: String,
@@ -63,7 +51,6 @@ const clienteSchema = new mongoose.Schema({
     unique: true,
   },
   endereco: enderecoSchema,
-  conjugue: conjugueSchema,
   status: {
     type: String,
     default: 'ativo', // 'ativo', 'inativo'
@@ -75,8 +62,8 @@ const clienteSchema = new mongoose.Schema({
 });
 
 // Índice composto para garantir que o código do cliente seja único por loja e empresa
-clienteSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_cliente: 1 }, { unique: true });
+fornecedorSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_cliente: 1 }, { unique: true });
 
-const Cliente = mongoose.model('Cliente', clienteSchema);
+const Fornecedor = mongoose.model('Fornecedor', fornecedorSchema);
 
-module.exports = Cliente;
+module.exports = Fornecedor;

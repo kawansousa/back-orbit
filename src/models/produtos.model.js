@@ -100,7 +100,6 @@ const produtoSchema = new mongoose.Schema({
   },
   codigo_barras: {
     type: Number,
-    required: true,
   },
   descricao: {
     type: String,

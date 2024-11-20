@@ -37,19 +37,31 @@ const clienteSchema = new mongoose.Schema({
   codigo_cliente: {
     type: Number,
     required: true,
-  },
-  nome: {
-    type: String,
-    required: true,
-  },
-  apelido: {
-    type: String,
+    unique: true
   },
   cpf: {
     type: String,
+    default: '',
+  },
+  rg: {
+    type: String,
+    default: '',
+  },
+  nome: {
+    type: String,
+    default: '',
+  },
+  apelido: {
+    type: String,
+    default: '',
   },
   cnpj: {
     type: String,
+    default: '',
+  },
+  ie: {
+    type: String,
+    default: '',
   },
   fone: {
     type: String,
@@ -60,7 +72,10 @@ const clienteSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
+  },
+  tipo: {
+    type: String,
+    required: true,
   },
   endereco: enderecoSchema,
   conjugue: conjugueSchema,

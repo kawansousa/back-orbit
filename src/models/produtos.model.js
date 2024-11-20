@@ -97,7 +97,6 @@ const produtoSchema = new mongoose.Schema({
   },
   codigo_produto: {
     type: Number,
-    required: true,
   },
   codigo_barras: {
     type: Number,
@@ -119,7 +118,6 @@ const produtoSchema = new mongoose.Schema({
   },
   referencia: {
     type: String,
-    required: true,
   },
   volume: {
     type: Number,

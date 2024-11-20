@@ -3,12 +3,12 @@ const Produto = require('../models/produtos.model');
 
 exports.createProduto = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.body;
+    const { codigo_loja, codigo_empresa } = req.body;    
 
     // Verificar se codigo_loja e codigo_empresa estão presentes
     if (!codigo_loja || !codigo_empresa) {
-      return res.status(400).json({ 
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' 
+      return res.status(400).json({
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
       });
     }
 
@@ -16,35 +16,94 @@ exports.createProduto = async (req, res) => {
     const newProduto = new Produto(req.body);
     await newProduto.save();
 
-    res.status(201).json({ 
-      message: 'Produto criado com sucesso', 
-      produto: newProduto 
+    res.status(201).json({
+      message: 'Produto criado com sucesso',
+      produto: newProduto
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// Listar todos os produtos
-// Listar todos os produtos por codigo_loja e codigo_empresa usando req.body
+
 exports.getProdutos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.body;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      page,
+      limit,
+      searchTerm,
+      searchType // New parameter for specific field search
+    } = req.query;
 
-    // Validação para garantir que os parâmetros foram fornecidos
+    // Verifica se os parâmetros obrigatórios foram fornecidos
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({ error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' });
     }
 
-    // Procurar produtos com base nos filtros fornecidos
-    const produtos = await Produto.find({ codigo_loja, codigo_empresa });
+    // Converte os parâmetros de paginação para números
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
 
-    // Verificar se existem produtos encontrados
-    if (produtos.length === 0) {
-      return res.status(404).json({ message: 'Nenhum produto encontrado para essa loja e empresa.' });
+    if (pageNumber < 1 || limitNumber < 1) {
+      return res.status(400).json({ error: 'Os valores de page e limit devem ser maiores que 0.' });
     }
 
-    res.status(200).json(produtos);
+    // Calcula o deslocamento (skip)
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Constrói o objeto de filtros baseado no tipo de busca
+    let filtros = {
+      codigo_loja,
+      codigo_empresa,
+    };
+
+    if (searchTerm) {
+      if (searchType === 'todos') {
+        filtros.$or = [
+          { descricao: { $regex: searchTerm, $options: 'i' } },
+          { codigo_produto: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
+          { codigo_barras: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
+          { referencia: { $regex: searchTerm, $options: 'i' } }
+        ].filter(condition => condition[Object.keys(condition)[0]] !== null);
+      } else {
+        // Busca específica por campo
+        switch (searchType) {
+          case 'codigo_produto':
+          case 'codigo_barras':
+            if (!isNaN(searchTerm)) {
+              filtros[searchType] = parseInt(searchTerm, 10);
+            }
+            break;
+          case 'descricao':
+          case 'referencia':
+            filtros[searchType] = { $regex: searchTerm, $options: 'i' };
+            break;
+        }
+      }
+    }
+
+    // Consulta com paginação e filtros
+    const produtos = await Produto.find(filtros)
+      .skip(skip)
+      .limit(limitNumber);
+
+    // Total de produtos para a paginação
+    const totalProdutos = await Produto.countDocuments(filtros);
+
+    if (produtos.length === 0) {
+      return res.status(404).json({ message: 'Nenhum produto encontrado para os filtros fornecidos.' });
+    }
+
+    // Retorna os produtos junto com informações de paginação
+    res.status(200).json({
+      total: totalProdutos,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(totalProdutos / limitNumber),
+      data: produtos,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -82,6 +141,8 @@ exports.getProdutosById = async (req, res) => {
 exports.updateProduto = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.body; // Ou req.query, dependendo de onde os parâmetros são passados
+
+
 
     // Verificar se os parâmetros obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {

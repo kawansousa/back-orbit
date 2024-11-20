@@ -28,6 +28,7 @@ exports.createLoja = async (req, res) => {
         codigo_loja: codigoLoja,
         codigo_empresas: {
           codigo: codigoEmpresa,
+          nome: lojasNome,
         },
       });
 

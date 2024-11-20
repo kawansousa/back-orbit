@@ -6,6 +6,7 @@ const acessoEmpresasSchema = new mongoose.Schema({
   },
   codigo_empresas: {
     codigo: { type: Number },
+    nome: { type: String },
   },
 });
 

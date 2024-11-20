@@ -5,31 +5,38 @@ const User = require('../models/user.model');
 exports.createLoja = async (req, res) => {
   const { lojasNome, responsavel, fone_responsavel, empresas, userId } = req.body;
 
+  // Criar a nova loja
+  const novaLoja = new Loja({
+    lojasNome,
+    responsavel,
+    fone_responsavel,
+    empresas // Empresas já têm o código atribuído no middleware
+  });
+
   try {
-    // Criar a nova loja
-    const novaLoja = new Loja({
-      lojasNome,
-      responsavel,
-      fone_responsavel,
-      empresas
+    // Antes de salvar, atribuir os códigos das empresas (em caso de não ter sido feito no middleware)
+    empresas.forEach((empresa, index) => {
+      empresa.codigo_empresa = index + 1; // Gerar código sequencial para cada empresa dentro da loja
     });
 
     // Salvar a loja no banco de dados
     await novaLoja.save();
 
-    // Assumindo que o primeiro código de empresa seja o que você deseja associar ao usuário
+    // Obter o código da loja
     const codigoLoja = novaLoja.codigo_loja;
-    const codigoEmpresa = novaLoja.empresas[0].codigo_empresa;
 
-    // Atualizar o usuário, associando-o à loja e à empresa
+    // Atualizar o usuário, associando-o à loja e às empresas
     const user = await User.findById(userId);
     if (user) {
-      user.acesso_loja.push({
-        codigo_loja: codigoLoja,
-        codigo_empresas: {
-          codigo: codigoEmpresa,
-          nome: lojasNome,
-        },
+      // Iterar sobre o array de empresas e adicionar informações ao campo acesso_loja do usuário
+      empresas.forEach(empresa => {
+        user.acesso_loja.push({
+          codigo_loja: codigoLoja,
+          codigo_empresas: {
+            codigo: empresa.codigo_empresa,  // Usar o código gerado manualmente
+            nome: empresa.nomeFantasia,      // Nome da empresa
+          },
+        });
       });
 
       // Salvar as alterações no usuário
@@ -41,7 +48,7 @@ exports.createLoja = async (req, res) => {
       loja: novaLoja,
       user: user ? user : null
     });
-    
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

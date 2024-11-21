@@ -7,6 +7,7 @@ const userRoutes = require('./routes/user.routes');
 const lojasRoutes = require('./routes/lojas.routes');
 const produtosRoutes = require('./routes/produtos.routes');
 const clientesRoutes = require('./routes/clientes.routes');
+const fornecedoresRoutes = require('./routes/fornecedores.routes');
 const auth = require('./middlewares/auth');
 
 // Usar o CORS com as opções definidas
@@ -19,6 +20,7 @@ app.use('/usuario', userRoutes);
 app.use('/lojas', auth, lojasRoutes);
 app.use('/produtos', auth, produtosRoutes);
 app.use('/clientes', auth, clientesRoutes);
+app.use('/fornecedores', auth, fornecedoresRoutes);
 
 connectToDatabase();
 module.exports = app;

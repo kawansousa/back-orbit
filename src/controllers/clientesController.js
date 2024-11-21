@@ -21,28 +21,64 @@ exports.createCliente = async (req, res) => {
       conjugue,
     } = req.body;
 
-    // Validate mandatory fields
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
       });
     }
 
-   /*  // Verify for duplicates (e.g., by some unique identifier like CPF/CNPJ)
+    // Verificar duplicidade
     const clienteExistente = await Cliente.findOne({
       codigo_loja,
       codigo_empresa,
       $or: [
-        { cpf }, // Verifica a descrição
-        { cnpj }, // Verifica o código de barras
+        {
+          $and: [
+            { cnpj: { $ne: "nao informado" } },
+            { cnpj: { $ne: "" } },
+            { cnpj },
+          ],
+        },
+        {
+          $and: [
+            { cpf: { $ne: "nao informado" } },
+            { cpf: { $ne: "" } },
+            { cpf },
+          ],
+        },
+        {
+          $and: [
+            { ie: { $ne: "nao informado" } },
+            { ie: { $ne: "" } },
+            { ie },
+          ],
+        },
+        {
+          $and: [
+            { rg: { $ne: "nao informado" } },
+            { rg: { $ne: "" } },
+            { rg },
+          ],
+        },
       ],
     });
 
     if (clienteExistente) {
-      return res.status(409).json({
-        error: 'Já existe um cliente cadastrado com esse identificador.',
-      });
-    } */
+      if (clienteExistente.cpf === cpf || clienteExistente.cnpj === cnpj) {
+        return res.status(409).json({
+          error: "Já existe um cliente cadastrado com esse CPF ou CNPJ.",
+        });
+      } else if (clienteExistente.rg === rg || clienteExistente.ie === ie) {
+        return res.status(409).json({
+          error: "Já existe um cliente cadastrado com esse RG ou IE.",
+        });
+      }
+    }
+    // Validar formato de email
+    if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return res.status(400).json({ error: 'Formato de email inválido.' });
+    }
+
 
     const novoCliente = new Cliente({
       codigo_loja,
@@ -60,6 +96,7 @@ exports.createCliente = async (req, res) => {
       tipo,
       endereco,
       conjugue,
+
     });
 
     await novoCliente.save();
@@ -228,7 +265,6 @@ exports.updateCliente = async (req, res) => {
   }
 };
 
-// Deletar um cliente
 exports.deleteCliente = async (req, res) => {
   try {
     const cliente = await Cliente.findByIdAndDelete(req.params.id);

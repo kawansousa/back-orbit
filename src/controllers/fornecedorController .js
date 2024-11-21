@@ -2,7 +2,20 @@ const Fornecedor = require('../models/fornecedores.model');
 
 exports.createFornecedor = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.body;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      codigo_fornecedor,
+      razao_social,
+      nome_fantasia,
+      cnpj,
+      ie,
+      fone,
+      fone_secundario,
+      email,
+      endereco,
+    } = req.body;
+
 
     // Verificar se codigo_loja e codigo_empresa estão presentes
     if (!codigo_loja || !codigo_empresa) {
@@ -11,8 +24,7 @@ exports.createFornecedor = async (req, res) => {
       });
     }
 
-    // Validações específicas
-    if (!razao && !fantasia) {
+    if (!razao_social && !razao_social) {
       return res.status(400).json({ error: 'A razão social ou fantasia são obrigatórios.' });
     }
 
@@ -20,20 +32,37 @@ exports.createFornecedor = async (req, res) => {
       return res.status(400).json({ error: 'É necessário informar CNPJ ou CPF.' });
     }
 
-    // Verificar se já existe fornecedor com mesmo CNPJ/CPF
     const fornecedorExistente = await Fornecedor.findOne({
       codigo_loja,
       codigo_empresa,
       $or: [
-        { cnpj: cnpj || null },
-        { cpf: cpf || null }
-      ]
+        {
+          $and: [
+            { cnpj: { $ne: "nao informado" } },
+            { cnpj: { $ne: "" } },
+            { cnpj },
+          ],
+        },
+        {
+          $and: [
+            { ie: { $ne: "nao informado" } },
+            { ie: { $ne: "" } },
+            { ie },
+          ],
+        }
+      ],
     });
 
     if (fornecedorExistente) {
-      return res.status(409).json({
-        error: 'Já existe um fornecedor cadastrado com este CNPJ/CPF.'
-      });
+      if (fornecedorExistente.cnpj === cnpj) {
+        return res.status(409).json({
+          error: "Já existe um cliente cadastrado com esse  CNPJ.",
+        });
+      } else if (fornecedorExistente.ie === ie) {
+        return res.status(409).json({
+          error: "Já existe um cliente cadastrado com esse IE.",
+        });
+      }
     }
 
     // Validar formato de email
@@ -44,24 +73,29 @@ exports.createFornecedor = async (req, res) => {
     const novoFornecedor = new Fornecedor({
       codigo_loja,
       codigo_empresa,
+      codigo_fornecedor,
+      razao_social,
+      nome_fantasia,
       cnpj,
-      cpf,
-      fantasia,
-      razao,
+      ie,
+      fone,
+      fone_secundario,
       email,
-      data_cadastro: new Date(),
-      status: true
+      endereco,
     });
 
     await novoFornecedor.save();
-    res.status(201).json(novoFornecedor);
+    res.status(201).json({
+      message: 'Fornecedor criado com sucesso',
+      cliente: novoFornecedor,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
 // Obter todos os fornecedor
-exports.getnovoFornecedores = async (req, res) => {
+exports.getFornecedores = async (req, res) => {
   try {
     const {
       codigo_loja,
@@ -97,24 +131,22 @@ exports.getnovoFornecedores = async (req, res) => {
     if (searchTerm) {
       if (searchType === 'todos') {
         filtros.$or = [
-          { razao: { $regex: searchTerm, $options: 'i' } },
-          { fantasia: { $regex: searchTerm, $options: 'i' } },
+          { nome_fantasia: { $regex: searchTerm, $options: 'i' } },
+          { razao_social: { $regex: searchTerm, $options: 'i' } },
           { email: { $regex: searchTerm, $options: 'i' } },
           { cnpj: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
-          { cpf: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
         ].filter(condition => condition[Object.keys(condition)[0]] !== null);
       } else {
         // Busca específica por campo
         switch (searchType) {
           case 'cnpj':
-          case 'cpf':
             if (!isNaN(searchTerm)) {
               filtros[searchType] = parseInt(searchTerm, 10);
             }
             break;
-          case 'fantasia':
+          case 'nome_fantasia':
           case 'email':
-          case 'razao':
+          case 'razao_social':
             filtros[searchType] = { $regex: searchTerm, $options: 'i' };
             break;
         }
@@ -129,7 +161,7 @@ exports.getnovoFornecedores = async (req, res) => {
     // Total de produtos para a paginação
     const totalFornecedor = await Fornecedor.countDocuments(filtros);
 
-    if (produtos.length === 0) {
+    if (fornecedor.length === 0) {
       return res.status(404).json({ message: 'Nenhum fornecedor encontrado para os filtros fornecidos.' });
     }
 

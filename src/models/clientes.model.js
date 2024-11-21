@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 
 // Schema de Endereço
 const enderecoSchema = new mongoose.Schema({
-  logradouro: { type: String },
-  rua: { type: String },
+  endereco: { type: String },
   numero: { type: String },
   bairro: { type: String },
   cidade: { type: String },
@@ -41,11 +40,11 @@ const clienteSchema = new mongoose.Schema({
   },
   cpf: {
     type: String,
-    default: '',
+    default: 'nao informado',
   },
   rg: {
     type: String,
-    default: '',
+    default: 'nao informado',
   },
   nome: {
     type: String,
@@ -57,11 +56,11 @@ const clienteSchema = new mongoose.Schema({
   },
   cnpj: {
     type: String,
-    default: '',
+    default: 'nao informado',
   },
   ie: {
     type: String,
-    default: '',
+    default: 'nao informado',
   },
   fone: {
     type: String,
@@ -71,7 +70,6 @@ const clienteSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
   },
   tipo: {
     type: String,

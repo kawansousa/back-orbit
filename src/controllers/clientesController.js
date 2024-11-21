@@ -1,5 +1,192 @@
 const Cliente = require('../models/clientes.model');
+const Cidades = require('../models/cidades.model');
 
+exports.getClientes = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
+
+    // Validate mandatory parameters
+    if (!codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+      });
+    }
+
+    // Convert pagination parameters
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 10;
+
+    if (pageNumber < 1 || limitNumber < 1) {
+      return res.status(400).json({
+        error: 'Os valores de page e limit devem ser maiores que 0.'
+      });
+    }
+
+    // Calculate skip
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Build filters
+    let filtros = {
+      codigo_loja,
+      codigo_empresa,
+    };
+
+    if (searchTerm) {
+      if (searchType === 'todos') {
+        filtros.$or = [
+          { nome: { $regex: searchTerm, $options: 'i' } },
+          { cpf: { $regex: searchTerm, $options: 'i' } },
+          { email: { $regex: searchTerm, $options: 'i' } }
+        ];
+      } else {
+        // Specific field search
+        switch (searchType) {
+          case 'nome':
+          case 'cpf':
+          case 'email':
+            filtros[searchType] = { $regex: searchTerm, $options: 'i' };
+            break;
+        }
+      }
+    }
+
+    // Aggregation pipeline
+    const pipeline = [
+      { $match: filtros },
+      { $skip: skip },
+      { $limit: limitNumber },
+
+      // Handling cidade for cliente
+      {
+        $addFields: {
+          'endereco.cidade': {
+            $cond: {
+              if: {
+                $and: [
+                  { $ne: ['$endereco.cidade', ''] },
+                  { $ne: ['$endereco.cidade', null] }
+                ]
+              },
+              then: { $toInt: '$endereco.cidade' },
+              else: null
+            }
+          }
+        }
+      },
+
+      // Handling cidade for conjugue
+      {
+        $addFields: {
+          'conjugue.endereco.cidade': {
+            $cond: {
+              if: {
+                $and: [
+                  { $ne: ['$conjugue.endereco.cidade', ''] },
+                  { $ne: ['$conjugue.endereco.cidade', null] }
+                ]
+              },
+              then: { $toInt: '$conjugue.endereco.cidade' },
+              else: null
+            }
+          }
+        }
+      },
+
+      // Lookup for cliente's city
+      {
+        $lookup: {
+          from: 'cidades',
+          let: { cidadeId: '$endereco.cidade' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$codigo', '$$cidadeId'] },
+                    { $ne: ['$$cidadeId', null] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'cidadeInfo'
+        }
+      },
+
+      // Update cidade for cliente
+      {
+        $addFields: {
+          'endereco.cidade': {
+            $cond: {
+              if: { $gt: [{ $size: '$cidadeInfo' }, 0] },
+              then: { $arrayElemAt: ['$cidadeInfo.nome', 0] },
+              else: ''
+            }
+          }
+        }
+      },
+
+      // Lookup for conjugue's city
+      {
+        $lookup: {
+          from: 'cidades',
+          let: { cidadeId: '$conjugue.endereco.cidade' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$codigo', '$$cidadeId'] },
+                    { $ne: ['$$cidadeId', null] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'cidadeInfoConjugue'
+        }
+      },
+
+      // Update cidade for conjugue
+      {
+        $addFields: {
+          'conjugue.endereco.cidade': {
+            $cond: {
+              if: { $gt: [{ $size: '$cidadeInfoConjugue' }, 0] },
+              then: { $arrayElemAt: ['$cidadeInfoConjugue.nome', 0] },
+              else: ''
+            }
+          }
+        }
+      },
+
+      // Remove temporary lookup arrays
+      { $unset: ['cidadeInfo', 'cidadeInfoConjugue'] }
+    ];
+
+    const clientes = await Cliente.aggregate(pipeline);
+
+    // Total clients for pagination
+    const totalClientes = await Cliente.countDocuments(filtros);
+
+    if (clientes.length === 0) {
+      return res.status(404).json({
+        message: 'Nenhum cliente encontrado para os filtros fornecidos.'
+      });
+    }
+
+    // Return clients with pagination info
+    res.status(200).json({
+      total: totalClientes,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(totalClientes / limitNumber),
+      data: clientes,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 exports.createCliente = async (req, res) => {
   try {
@@ -109,90 +296,6 @@ exports.createCliente = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
-exports.getClientes = async (req, res) => {
-  try {
-    const {
-      codigo_loja,
-      codigo_empresa,
-      page,
-      limit,
-      searchTerm,
-      searchType
-    } = req.query;
-
-    // Validate mandatory parameters
-    if (!codigo_loja || !codigo_empresa) {
-      return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
-      });
-    }
-
-    // Convert pagination parameters
-    const pageNumber = parseInt(page, 10);
-    const limitNumber = parseInt(limit, 10);
-
-    if (pageNumber < 1 || limitNumber < 1) {
-      return res.status(400).json({
-        error: 'Os valores de page e limit devem ser maiores que 0.'
-      });
-    }
-
-    // Calculate skip
-    const skip = (pageNumber - 1) * limitNumber;
-
-    // Build filters
-    let filtros = {
-      codigo_loja,
-      codigo_empresa,
-    };
-
-    if (searchTerm) {
-      if (searchType === 'todos') {
-        filtros.$or = [
-          { nome: { $regex: searchTerm, $options: 'i' } },
-          { cpf: { $regex: searchTerm, $options: 'i' } },
-          { email: { $regex: searchTerm, $options: 'i' } }
-        ];
-      } else {
-        // Specific field search
-        switch (searchType) {
-          case 'nome':
-          case 'cpf':
-          case 'email':
-            filtros[searchType] = { $regex: searchTerm, $options: 'i' };
-            break;
-        }
-      }
-    }
-
-    // Query with pagination and filters
-    const clientes = await Cliente.find(filtros)
-      .skip(skip)
-      .limit(limitNumber);
-
-    // Total clients for pagination
-    const totalClientes = await Cliente.countDocuments(filtros);
-
-    if (clientes.length === 0) {
-      return res.status(404).json({
-        message: 'Nenhum cliente encontrado para os filtros fornecidos.'
-      });
-    }
-
-    // Return clients with pagination info
-    res.status(200).json({
-      total: totalClientes,
-      page: pageNumber,
-      limit: limitNumber,
-      totalPages: Math.ceil(totalClientes / limitNumber),
-      data: clientes,
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 exports.getClientesById = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;

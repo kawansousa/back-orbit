@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const autoIncrementFornecedor = require('../middlewares/autoIncrementFornecedor');
-const fornecedoresController = require('../controllers/fornecedorController ');
+const fornecedoresController = require('../controllers/fornecedorController');
 
 // Criar novo Cliente com middleware
 router.post('/fornecedor', autoIncrementFornecedor, fornecedoresController.createFornecedor);

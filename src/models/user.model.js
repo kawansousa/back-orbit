@@ -43,7 +43,13 @@ const permissionsSchema = new mongoose.Schema({
       receber: { type: Boolean, default: true },
       pagar: { type: Boolean, default: true },
       gestao: { type: Boolean, default: true },
-      relatorios: { type: Boolean, default: true }
+      relatorios: { type: Boolean, default: true },
+
+      /* páginas futuras  */
+      transferencia: { type: Boolean, default: true },
+      comandas: { type: Boolean, default: true },
+      trocas: { type: Boolean, default: true },
+
     }
   }
 });

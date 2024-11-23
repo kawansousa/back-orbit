@@ -18,22 +18,32 @@ const permissionsSchema = new mongoose.Schema({
       alterar: { type: Boolean, default: true },
       cancelar: { type: Boolean, default: true },
     },
-    cadastrar: {
-      cliente: { type: Boolean, default: true },
+    cadastro: {
       fornecedor: { type: Boolean, default: true },
-      usuario: { type: Boolean, default: true },
-      produtos: { type: Boolean, default: true },
-    },
-    alterar: {
       cliente: { type: Boolean, default: true },
-      fornecedor: { type: Boolean, default: true },
+      grupo: { type: Boolean, default: true },
       usuario: { type: Boolean, default: true },
-      produtos: { type: Boolean, default: true },
     },
     acessos: {
       dashboard: { type: Boolean, default: true },
+      produto: { type: Boolean, default: true },
+      entrada: { type: Boolean, default: true },
+      saida: { type: Boolean, default: true },
+      etiqueta: { type: Boolean, default: true },
+      fornecedor: { type: Boolean, default: true },
+      cliente: { type: Boolean, default: true },
+      grupo: { type: Boolean, default: true },
+      usuario: { type: Boolean, default: true },
+      pdv: { type: Boolean, default: true },
+      orcamentos: { type: Boolean, default: true },
+      os: { type: Boolean, default: true },
+      servicos: { type: Boolean, default: true },
+      mecanicos: { type: Boolean, default: true },
+      caixa: { type: Boolean, default: true },
       receber: { type: Boolean, default: true },
       pagar: { type: Boolean, default: true },
+      gestao: { type: Boolean, default: true },
+      relatorios: { type: Boolean, default: true }
     }
   }
 });
@@ -58,6 +68,7 @@ const userSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
+    enum: ['Administrador', 'Gerente', 'Caixa', 'Estoquista'],
   },
   permissions: [permissionsSchema]
 

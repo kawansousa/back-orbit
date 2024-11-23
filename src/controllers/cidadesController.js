@@ -55,7 +55,6 @@ exports.getCidades = async (req, res) => {
   }
 };
 
-
 // Obter um fornecedor específico
 exports.getCidadesById = async (req, res) => {
   try {

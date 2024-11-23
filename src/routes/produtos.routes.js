@@ -9,6 +9,6 @@ const authUser = require('../middlewares/authUser');
 router.post('/produtos', autoIncrementProduto, ProdutosController.createProduto);
 router.get('/produtos', ProdutosController.getProdutos);
 router.get('/produtos/:id', ProdutosController.getProdutosById);
-router.put('/produtos/:id', authUser, ProdutosController.updateProduto);
+router.put('/produtos/:id', ProdutosController.updateProduto);
 
 module.exports = router;

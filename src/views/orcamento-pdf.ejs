@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Orçamento #<%= orcamento.codigo_orcamento %></title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+        line-height: 1.6;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .customer-info {
+        margin-bottom: 20px;
+      }
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      .items-table th,
+      .items-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      .total-section {
+        text-align: right;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>Orçamento #<%= orcamento.codigo_orcamento %></h1>
+      <p>Data: <%= new Date(orcamento.data_emissao).toLocaleDateString() %></p>
+    </div>
+
+    <div class="customer-info">
+      <h2>Dados do Cliente</h2>
+      <p>Nome: <%= orcamento.cliente.nome %></p>
+      <p>CPF: <%= orcamento.cliente.cpf %></p>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Produto</th>
+          <th>Quantidade</th>
+          <th>Preço Unit.</th>
+          <th>Desconto</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% orcamento.itens.forEach(item => { %>
+        <tr>
+          <td><%= item.descricao %></td>
+          <td><%= item.quantidade %></td>
+          <td>R$ <%= item.preco_unitario.toFixed(2) %></td>
+          <td><%= item.desconto_percentual %>%</td>
+          <td>R$ <%= item.total_unitario.toFixed(2) %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+
+    <div class="total-section">
+      <p>Subtotal: R$ <%= orcamento.valores.subtotal.toFixed(2) %></p>
+      <p>Desconto: <%= orcamento.valores.desconto_percentual_total %>%</p>
+      <p>
+        <strong>Total: R$ <%= orcamento.valores.total.toFixed(2) %></strong>
+      </p>
+    </div>
+
+    <% if (orcamento.observacoes) { %>
+    <div class="observations">
+      <h3>Observações</h3>
+      <p><%= orcamento.observacoes %></p>
+    </div>
+    <% } %>
+  </body>
+</html>

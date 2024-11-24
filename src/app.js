@@ -10,6 +10,7 @@ const clientesRoutes = require('./routes/clientes.routes');
 const fornecedoresRoutes = require('./routes/fornecedores.routes');
 const cidadesRoutes = require('./routes/cidades.routes');
 const gruposRoutes = require('./routes/grupos.routes');
+const orcamantosRoutes = require('./routes/orcamentos.routes')
 const auth = require('./middlewares/auth');
 
 // Usar o CORS com as opções definidas
@@ -25,6 +26,7 @@ app.use('/clientes', auth, clientesRoutes);
 app.use('/fornecedores', auth, fornecedoresRoutes);
 app.use('/cidades', auth, cidadesRoutes);
 app.use('/grupos', auth, gruposRoutes);
+app.use('/orcamentos', orcamantosRoutes);
 
 connectToDatabase();
 module.exports = app;

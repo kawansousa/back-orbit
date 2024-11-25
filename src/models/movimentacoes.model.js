@@ -21,6 +21,10 @@ const MovimentacaoSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  codigo_caixa: {
+    type: Number,
+    required: true
+  },
   status: {
     type: String,
     required: true,
@@ -52,7 +56,7 @@ const MovimentacaoSchema = new mongoose.Schema({
   meio_pagamento: {
     type: String,
     required: true,
-    enum: ['dinehiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque']
+    enum: ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque']
   },
   categoria_contabil: {
     type: String,
@@ -60,7 +64,6 @@ const MovimentacaoSchema = new mongoose.Schema({
   },
   obsevacao: {
     type: String,
-    required: true
   },
 });
 

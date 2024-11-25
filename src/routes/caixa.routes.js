@@ -9,6 +9,7 @@ router.post('/caixa', autoIncrementCaixa, caixaController.abrirCaixa);
 router.post('/caixaRegistraMovimento', autoIncrementMovimento, caixaController.registrarMovimentacao);
 router.get('/caixas/:codigo_loja', caixaController.listarCaixas);
 router.get('/caixasDetalhes/:caixaId', caixaController.detalhesCaixa);
+
 router.post('/caixaFechamento', caixaController.fecharCaixa);
 
 module.exports = router;

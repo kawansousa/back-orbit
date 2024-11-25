@@ -182,19 +182,20 @@ exports.getFornecedores = async (req, res) => {
 // Obter um fornecedor específico
 exports.getfornecedorById = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.body;
+    const { codigo_loja, codigo_empresa } = req.query; // Alterado para req.query
 
     // Verificar se codigo_loja e codigo_empresa estão presentes
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
       });
     }
 
     const fornecedor = await Fornecedor.findById(req.params.id);
     if (!fornecedor) {
-      return res.status(404).json({ error: 'fornecedor não encontrado' });
+      return res.status(404).json({ error: 'Fornecedor não encontrado' });
     }
+
     res.status(200).json(fornecedor);
 
   } catch (error) {

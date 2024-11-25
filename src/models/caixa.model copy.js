@@ -1,34 +1,35 @@
 const mongoose = require('mongoose');
 
-// Model de Caixa
-const CaixaSchema = new mongoose.Schema({
+// Schema principal de Movimentação
+const caixaSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
     required: true
   },
   codigo_empresa: {
     type: String,
-    required: true
   },
   codigo_caixa: {
     type: Number,
+    required: true,
   },
   caixa: {
     type: Number,
     required: true,
+    defalt: 1
   },
   status: {
     type: String,
     enum: ['aberto', 'fechado'],
     default: 'aberto'
   },
-  responsavel_abertura: {
+  responsavel_abeertura: {
     type: String,
     required: true
   },
   responsavel_fechamento: {
     type: String,
-    default: null
+    required: true
   },
   data_abertura: {
     type: Date,
@@ -36,18 +37,16 @@ const CaixaSchema = new mongoose.Schema({
   },
   data_fechamento: {
     type: Date,
-    default: null
+    required: true
   },
-  saldo_inicial: {
-    type: Number,
-    default: 0
-  },
-  saldo_final: {
-    type: Number,
-    default: 0
+  saldo_anterior: {
+    type: String
   }
+}, {
+  timestamps: true
 });
 
-const Caixa = mongoose.model('Caixa', CaixaSchema);
 
-module.exports =  Caixa ;
+const caixa = mongoose.model('caixa', caixaSchema);
+
+module.exports = caixa;

@@ -3,8 +3,7 @@ const Cliente = require('../models/clientes.model'); // Assumindo que existe um 
 const ejs = require('ejs');
 const path = require('path');
 const puppeteer = require('puppeteer');
-const fs = require('fs');
-
+const chromium = require('chrome-aws-lambda');
 
 
 exports.createOrcamento = async (req, res) => {
@@ -180,6 +179,7 @@ exports.getOrcamentoById = async (req, res) => {
 exports.updateOrcamento = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa, status, itens, observacoes } = req.body;
+    
     const usuario = req.body.usuario || 'Sistema'; // Idealmente viria do token de autenticação
 
     if (!codigo_loja || !codigo_empresa) {
@@ -392,6 +392,7 @@ exports.generateOrcamentoPDF = async (req, res) => {
       preferCSSPageSize: true
     });
 
+    console.log('PDF gerado com sucesso');
 
     await browser.close();
 
@@ -404,3 +405,69 @@ exports.generateOrcamentoPDF = async (req, res) => {
   }
 
 }
+
+
+/* exports.generateOrcamentoPDF = async (req, res) => {
+  try {
+    console.log('Iniciando geração de PDF');
+    const { codigo_loja, codigo_empresa } = req.query;
+
+    if (!codigo_loja || !codigo_empresa) {
+      console.error('Faltando codigo_loja ou codigo_empresa');
+      return res.status(400).json({
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
+      });
+    }
+
+    const orcamento = await Orcamento.findOne({
+      _id: req.params.id,
+      codigo_loja,
+      codigo_empresa,
+    }).populate('cliente', 'nome cpf');
+
+    if (!orcamento) {
+      console.error('Orçamento não encontrado');
+      return res.status(404).json({
+        error: 'Orçamento não encontrado.',
+      });
+    }
+
+    console.log('Orçamento encontrado:', orcamento);
+    const templatePath = path.join(__dirname, '../views/orcamento.ejs');
+    const html = await ejs.renderFile(templatePath, { orcamento });
+    console.log('HTML gerado com sucesso');
+
+    // Usando chrome-aws-lambda
+    const browser = await chromium.puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+      headless: chromium.headless,
+    });
+    
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      },
+      preferCSSPageSize: true
+    });
+
+    await browser.close();
+
+    res.setHeader('Content-Disposition', 'attachment; filename=orcamento.pdf');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.end(pdfBuffer);
+
+  } catch (error) {
+    console.error('Erro ao gerar PDF:', error);
+    res.status(500).json({ error: error.message });
+  }
+}; */

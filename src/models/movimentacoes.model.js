@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
-// Schema principal de Movimentação
-const movimentacaoSchema = new mongoose.Schema({
+// Model de Movimentação
+const MovimentacaoSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
     required: true
@@ -10,38 +10,38 @@ const movimentacaoSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  numero_movimentacao: {
+  codigo_movimento: {
     type: Number,
+  },
+  caixaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Caixa',
+  },
+  caixa: {
+    type: Number,
+    required: true
+  },
+  status: {
+    type: String,
     required: true,
-    unique: true
+    enum: ['ativo', 'inativo'],
+    default: 'ativo'
   },
   tipo_movimentacao: {
     type: String,
     required: true,
     enum: ['entrada', 'saida', 'transferencia']
   },
+  valor: {
+    type: Number,
+    required: true
+  },
   origem: {
     type: String,
     required: true,
-    enum: ['compra', 'venda', 'producao', 'transferencia', 'ajuste_estoque', 'devolucao_cliente', 'devolucao_fornecedor']
+    enum: ['receber', 'venda', 'producao', 'transferencia', 'ajuste_estoque', 'devolucao_cliente', 'devolucao_fornecedor']
   },
   documento_origem: {
-    tipo: {
-      type: String,
-      required: true,
-      enum: ['nota_fiscal', 'pedido', 'ordem_producao', 'requisicao']
-    },
-    numero: {
-      type: String,
-      required: true
-    }
-  },
-  status: {
-    type: String,
-    enum: ['aberto', 'fechado'],
-    default: 'aberto'
-  },
-  responsavel: {
     type: String,
     required: true
   },
@@ -49,18 +49,17 @@ const movimentacaoSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  data_documento: {
-    type: Date,
+  meio_pagamento: {
+    type: String,
+    required: true,
+    enum: ['dinehiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque']
+  },
+  categoria_contabil: {
+    type: String,
     required: true
   },
-  observacoes: {
-    type: String
-  }
-}, {
-  timestamps: true
 });
 
-
-const Movimentacao = mongoose.model('Movimentacao', movimentacaoSchema);
+const Movimentacao = mongoose.model('Movimentacao', MovimentacaoSchema);
 
 module.exports = Movimentacao;

@@ -61,7 +61,7 @@ const fornecedorSchema = new mongoose.Schema({
   },
 });
 // Índice composto para garantir que o código do cliente seja único por loja e empresa
-fornecedorSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_fornecedor: 1 }, { unique: true });
+// fornecedorSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_fornecedor: 1 }, { unique: true });
 
 const Fornecedor = mongoose.model('Fornecedor', fornecedorSchema);
 

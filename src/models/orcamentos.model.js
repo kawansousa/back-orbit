@@ -66,7 +66,6 @@ const orcamentoSchema = new mongoose.Schema({
   cliente: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Cliente',
-    required: true
   },
   cliente_sem_cadastro: {
     nome: { type: String },

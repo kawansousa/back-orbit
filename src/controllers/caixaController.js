@@ -44,18 +44,24 @@ exports.abrirCaixa = async (req, res) => {
 // Registrar Movimentação
 exports.registrarMovimentacao = async (req, res) => {
   try {
-    const { caixaId } = req.params;
     const {
+      codigo_loja,
+      codigo_empresa,
       tipo_movimentacao,
       codigo_movimento,
       valor,
       origem,
       meio_pagamento,
       documento_origem,
-      categoria_contabil
+      categoria_contabil,
+      obsevacao
     } = req.body;
 
-    const caixa = await Caixa.findById(caixaId);
+    const caixa = await Caixa.findOne({
+      codigo_loja,
+      codigo_empresa,
+      status: 'aberto'
+    });
     console.log('Caixa encontrado:', caixa);
 
     if (!caixa || caixa.status !== 'aberto') {
@@ -66,7 +72,7 @@ exports.registrarMovimentacao = async (req, res) => {
     const novaMovimentacao = new Movimentacao({
       codigo_loja: caixa.codigo_loja,
       codigo_empresa: caixa.codigo_empresa,
-      caixaId,
+      caixaId: caixa._id,
       codigo_movimento,
       caixa: caixa.caixa,
       tipo_movimentacao,
@@ -75,7 +81,8 @@ exports.registrarMovimentacao = async (req, res) => {
       documento_origem,
       numero_movimentacao: Date.now(), // Geração simples de número único
       meio_pagamento,
-      categoria_contabil
+      categoria_contabil,
+      obsevacao
     });
 
     // Atualiza saldo do caixa
@@ -138,18 +145,42 @@ exports.detalhesCaixa = async (req, res) => {
   try {
     const { caixaId } = req.params;
 
-    console.log(caixaId);
-
-
-    const caixa = await Caixa.findById(caixaId).populate('caixaId');
+    // Find the cash register
+    const caixa = await Caixa.findById(caixaId);
 
     if (!caixa) {
       return res.status(404).json({ message: 'Caixa não encontrado' });
     }
 
+    // Find all transactions for this cash register
     const movimentacoes = await Movimentacao.find({ caixaId: caixa._id });
 
-    res.status(200).json({ caixa, movimentacoes });
+    // Calculate summary statistics
+    const totalReceitas = movimentacoes
+      .filter(mov => mov.tipo_movimentacao === 'entrada')
+      .reduce((sum, mov) => sum + mov.valor, 0);
+
+    const totalDespesas = movimentacoes
+      .filter(mov => mov.tipo_movimentacao === 'saida')
+      .reduce((sum, mov) => sum + mov.valor, 0);
+
+    const pagamentoStats = movimentacoes.reduce((acc, mov) => {
+      const method = mov.meio_pagamento.toLowerCase();
+      acc[method] = (acc[method] || 0) + mov.valor;
+      return acc;
+    }, {});
+
+    res.status(200).json({
+      caixa,
+      movimentacoes,
+      resumo: {
+        saldoAnterior: caixa.saldo_inicial,
+        saldoAtual: caixa.saldo_final,
+        totalReceitas,
+        totalDespesas,
+        pagamentoStats
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

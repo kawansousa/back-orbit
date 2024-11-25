@@ -39,7 +39,7 @@ const MovimentacaoSchema = new mongoose.Schema({
   origem: {
     type: String,
     required: true,
-    enum: ['receber', 'venda', 'producao', 'transferencia', 'ajuste_estoque', 'devolucao_cliente', 'devolucao_fornecedor']
+    enum: ['receber', 'venda', 'producao', 'transferencia', 'ajuste_estoque', 'devolucao_cliente', 'devolucao_fornecedor', 'caixa_manual']
   },
   documento_origem: {
     type: String,
@@ -55,6 +55,10 @@ const MovimentacaoSchema = new mongoose.Schema({
     enum: ['dinehiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque']
   },
   categoria_contabil: {
+    type: String,
+    required: true
+  },
+  obsevacao: {
     type: String,
     required: true
   },

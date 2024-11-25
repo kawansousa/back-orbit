@@ -392,8 +392,6 @@ exports.generateOrcamentoPDF = async (req, res) => {
       preferCSSPageSize: true
     });
 
-    console.log('PDF gerado com sucesso');
-    await fs.promises.writeFile('test-output.pdf', pdfBuffer);
 
     await browser.close();
 

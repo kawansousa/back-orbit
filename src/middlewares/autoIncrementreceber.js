@@ -2,7 +2,7 @@ const Receber = require('../models/receber.model');
 
 async function autoIncrementreceber(req, res, next) {
   try {
-    const { codigo_empresa, codigo_loja } = req.body;
+    const { codigo_empresa, codigo_loja, parcelas } = req.body;
 
     // Validar se os códigos de loja e empresa estão presentes
     if (!codigo_empresa || !codigo_loja) {
@@ -13,13 +13,16 @@ async function autoIncrementreceber(req, res, next) {
     const lastReceber = await Receber.findOne({ codigo_loja, codigo_empresa })
       .sort({ codigo_receber: -1 });
 
-    // Definir o próximo código de Receber
-    const nextCodigoReceber = lastReceber ? lastReceber.codigo_receber + 1 : 1;
+    // Definir o próximo código de Receber inicial
+    let nextCodigoReceber = lastReceber ? lastReceber.codigo_receber + 1 : 1;
 
-    // Adicionar o código de Receber ao corpo da requisição
-    req.body.codigo_receber = nextCodigoReceber;
-
-    console.log(nextCodigoReceber);
+    // Adicionar o código de Receber a cada parcela
+    if (parcelas && Array.isArray(parcelas)) {
+      req.body.parcelas = parcelas.map((parcela, index) => ({
+        ...parcela,
+        codigo_receber: nextCodigoReceber + index
+      }));
+    }
 
     next();
   } catch (error) {

@@ -1,28 +1,40 @@
 const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
 
-const RecebimentoSchema = new Schema({
-  // Cliente information
-  cliente: {
-    type: Schema.Types.ObjectId,
-    ref: 'Cliente',
+const ReceberSchema = new mongoose.Schema({
+  codigo_loja: {
+    type: String,
     required: true
   },
   codigo_empresa: {
     type: String,
     required: true
   },
-  codigo_loja: {
+  codigo_receber: {
+    type: Number,
+    required: true
+  },
+  fatura: {
+    type: String,
+  },
+  cliente: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Cliente',
+    required: true
+  },
+  origem: {
+    type: String,
+    required: true,
+    enum: ['venda', 'manual', 'outros']
+  },
+  documento_origem: {
     type: String,
     required: true
   },
-
-  // Invoice/Receivable details
-  numero_documento: {
-    type: Number,
-    required: true,
-  },
   valor_total: {
+    type: Number,
+    required: true
+  },
+  valor_restante: {
     type: Number,
     required: true
   },
@@ -30,64 +42,46 @@ const RecebimentoSchema = new Schema({
     type: Date,
     default: Date.now
   },
-  tipo_documento: {
-    type: String,
-    enum: ['venda', 'servico', 'outros'],
+  data_vencimento: {
+    type: Date,
     required: true
   },
-
-  // Parcelas (Installments)
-  parcelas: [{
-    numero_parcela: {
-      type: Number,
-      required: true
-    },
-    valor_parcela: {
-      type: Number,
-      required: true
-    },
-    data_vencimento: {
-      type: Date,
-      required: true
-    },
-    status: {
-      type: String,
-      enum: [
-        'aberto',
-        'pago',
-        'cancelado',
-        'vencido',
-        'renegociado'
-      ],
-      default: 'aberto'
-    },
-    data_pagamento: Date,
-    valor_pago: Number,
-    juros: Number,
-    multa: Number,
-    desconto: Number,
-    observacoes: String
-  }],
-
-  // Status do documento inteiro
-  status_documento: {
+  status: {
     type: String,
-    enum: [
-      'aberto',
-      'parcial',
-      'liquidado',
-      'cancelado',
-      'renegociado'
-    ],
+    required: true,
+    enum: ['aberto', 'parcial', 'liquidado', 'cancelado'],
     default: 'aberto'
   },
-
-  // Informações adicionais
-  origem_documento: {
-    type: String,
-    enum: ['venda', 'servico', 'manual']
+  liquidacoes: [{
+    data: {
+      type: Date,
+      default: Date.now
+    },
+    valor: {
+      type: Number,
+      required: true
+    },
+    meio_pagamento: {
+      type: String,
+      required: true,
+      enum: ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque']
+    },
+    movimentacao: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Movimentacao'
+    },
+    observacao: {
+      type: String
+    },
+    estornado: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  observacao: {
+    type: String
   }
-});
+}
+);
 
-
-module.exports = mongoose.model('Receber', RecebimentoSchema);
+module.exports = mongoose.model('Receber', ReceberSchema);

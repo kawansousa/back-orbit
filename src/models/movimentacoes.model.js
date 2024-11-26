@@ -43,7 +43,7 @@ const MovimentacaoSchema = new mongoose.Schema({
   origem: {
     type: String,
     required: true,
-    enum: ['receber', 'venda', 'producao', 'transferencia', 'ajuste_estoque', 'devolucao_cliente', 'devolucao_fornecedor', 'caixa_manual']
+    enum: ['recebimento','estorno_recebimento', 'venda', 'producao', 'transferencia', 'ajuste_estoque', 'devolucao_cliente', 'devolucao_fornecedor', 'caixa_manual']
   },
   documento_origem: {
     type: String,
@@ -62,7 +62,7 @@ const MovimentacaoSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  obsevacao: {
+  observacao: {
     type: String,
   },
 });

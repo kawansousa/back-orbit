@@ -50,7 +50,6 @@ exports.abrirCaixa = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 // Registrar Movimentação
 exports.registrarMovimentacao = async (req, res) => {
   try {
@@ -72,10 +71,8 @@ exports.registrarMovimentacao = async (req, res) => {
       codigo_empresa,
       status: 'aberto'
     });
-    console.log('Caixa encontrado:', caixa);
 
     if (!caixa || caixa.status !== 'aberto') {
-      console.log('Status do caixa:', caixa?.status);
       return res.status(400).json({ message: 'Caixa não está aberto' });
     }
 
@@ -199,7 +196,6 @@ exports.fecharCaixa = async (req, res) => {
 exports.listarCaixas = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;
-    console.log(codigo_loja, codigo_empresa);
 
 
     const { page = 1, limit = 20, searchTerm = '' } = req.query;

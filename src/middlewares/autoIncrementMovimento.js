@@ -13,13 +13,18 @@ async function autoIncrementMovimento(req, res, next) {
     const lastMovimento = await Movimentacao.findOne({ codigo_loja, codigo_empresa })
       .sort({ codigo_movimento: -1 });
 
-    // Definir o próximo código de Movimento
-    const nextCodigoMovimento = lastMovimento ? lastMovimento.codigo_movimento + 1 : 1;
+    // Definir o próximo código de Movimento inicial
+    let nextCodigoMovimento = lastMovimento ? lastMovimento.codigo_movimento + 1 : 1;
 
-    // Adicionar o código de Movimento ao corpo da requisição
-    req.body.codigo_movimento = nextCodigoMovimento;
-
-    console.log(nextCodigoMovimento);
+    // Adicionar o código de Movimento a cada movimentação no corpo da requisição
+    if (req.body.parcelas && Array.isArray(req.body.parcelas)) {
+      req.body.parcelas = req.body.parcelas.map((parcela, index) => ({
+        ...parcela,
+        codigo_movimento: nextCodigoMovimento + index
+      }));
+    } else {
+      req.body.codigo_movimento = nextCodigoMovimento;
+    }
 
     next();
   } catch (error) {

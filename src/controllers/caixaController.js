@@ -116,39 +116,39 @@ exports.registrarMovimentacao = async (req, res) => {
 exports.detalhesCaixa = async (req, res) => {
   try {
     const { caixaId } = req.params;
-    
+
     // Find the cash register
     const caixa = await Caixa.findById(caixaId);
-    
+
     if (!caixa) {
       return res.status(404).json({ message: 'Caixa não encontrado' });
     }
-    
+
     // Find all transactions for this cash register
     const movimentacoes = await Movimentacao.find({ caixaId: caixa._id });
-    
+
     // Calculate summary statistics
     const totalReceitas = movimentacoes
       .filter(mov => mov.tipo_movimentacao === 'entrada')
       .reduce((sum, mov) => sum + mov.valor, 0);
-    
+
     const totalDespesas = movimentacoes
       .filter(mov => mov.tipo_movimentacao === 'saida')
       .reduce((sum, mov) => sum + mov.valor, 0);
-    
+
     // Calculate payment method totals
     const pagamentoStats = movimentacoes.reduce((acc, mov) => {
       const method = mov.meio_pagamento.toLowerCase();
       acc[method] = (acc[method] || 0) + mov.valor;
       return acc;
     }, {});
-    
+
     // Calculate total movement (sum of all payment methods)
     const total_movimento = Object.values(pagamentoStats).reduce((sum, valor) => sum + valor, 0);
-    
+
     // Calculate total movement including initial balance
     const movimentacao_total = total_movimento + caixa.saldo_inicial;
-    
+
     res.status(200).json({
       caixa,
       movimentacoes,
@@ -198,7 +198,10 @@ exports.fecharCaixa = async (req, res) => {
 // Listar Caixas
 exports.listarCaixas = async (req, res) => {
   try {
-    const { codigo_loja } = req.params;
+    const { codigo_loja, codigo_empresa } = req.query;
+    console.log(codigo_loja, codigo_empresa);
+
+
     const { page = 1, limit = 20, searchTerm = '' } = req.query;
 
     const skip = (page - 1) * limit;
@@ -207,12 +210,13 @@ exports.listarCaixas = async (req, res) => {
     const searchQuery = searchTerm
       ? {
         codigo_loja,
+        codigo_empresa,
         $or: [
           { responsavel_abertura: { $regex: searchTerm, $options: 'i' } },
           { codigo_caixa: { $regex: searchTerm, $options: 'i' } }
         ]
       }
-      : { codigo_loja };
+      : { codigo_loja ,codigo_empresa};
 
     // Find caixas with pagination
     const caixas = await Caixa.find(searchQuery)

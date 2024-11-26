@@ -74,7 +74,7 @@ const userSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['Administrador', 'Gerente', 'Caixa', 'Estoquista'],
+    enum: ['Administrador', 'Gerente', 'Caixa', 'Estoquista', 'Vendedor', 'Suporte'],
   },
   permissions: [permissionsSchema]
 

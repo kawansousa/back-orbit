@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 // Schema de Item da Venda
 const itemVendaSchema = new mongoose.Schema({
   codigo_produto: {
-    type: String,
+    type: Number,
     required: true
   },
   descricao: {
@@ -42,32 +42,19 @@ const itemVendaSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
-const receberVendaSchema = new mongoose.Schema({
-  numero_parcelas: {
+const parcelasVendaSchema = new mongoose.Schema({
+  valor_total: {
     type: Number,
-    default: 1,
-    min: 1
   },
-
-  parcelamento: {
-    fatura: {
-      type: String,
-    },
-    parcela: {
-      type: String,
-    },
-    valor_parcela: {
-      type: Number,
-    },
-    descricao: {
-      type: String,
-      default: 0,
-      default: ''
-    },
-    data_pagamento: {
-      type: Date,
-    }
+  descricao: {
+    type: String,
+    default: 0,
+    default: ''
+  },
+  data_vencimento: {
+    type: Date,
   }
+
 }, { _id: false });
 
 const pagamentoVendaSchema = new mongoose.Schema({
@@ -101,10 +88,16 @@ const vendaSchema = new mongoose.Schema({
     enum: ['pago', 'cancelado'],
     default: 'pago'
   },
+  tipo: {
+    type: String,
+    enum: ['avista', 'aprazo'],
+  },
   cliente: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Cliente',
-    required: true
+  },
+  cliente_sem_cadastro: {
+    nome: { type: String },
   },
   vendedor: {
     type: mongoose.Schema.Types.ObjectId,
@@ -124,7 +117,7 @@ const vendaSchema = new mongoose.Schema({
 
   itens: [itemVendaSchema],
   forma_pagamento: [pagamentoVendaSchema],
-  faturamento: [receberVendaSchema],
+  parcelas: [parcelasVendaSchema],
 
   // Valores
   valores: {
@@ -170,10 +163,6 @@ const vendaSchema = new mongoose.Schema({
 
 });
 
-// Índices para melhorar performance
-vendaSchema.index({ codigo_venda: 1 });
-vendaSchema.index({ cliente: 1 });
-vendaSchema.index({ data_emissao: -1 });
 
 const Venda = mongoose.model('Venda', vendaSchema);
 

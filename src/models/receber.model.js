@@ -64,7 +64,7 @@ const ReceberSchema = new mongoose.Schema({
     meio_pagamento: {
       type: String,
       required: true,
-      enum: ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque']
+      enum: ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque' ,'aprazo']
     },
     movimentacao: {
       type: mongoose.Schema.Types.ObjectId,

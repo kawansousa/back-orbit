@@ -63,7 +63,7 @@ exports.registrarMovimentacao = async (req, res) => {
       meio_pagamento,
       documento_origem,
       categoria_contabil,
-      obsevacao
+      obsevacao,
     } = req.body;
 
     const caixa = await Caixa.findOne({
@@ -90,7 +90,7 @@ exports.registrarMovimentacao = async (req, res) => {
       numero_movimentacao: Date.now(), // Geração simples de número único
       meio_pagamento,
       categoria_contabil,
-      obsevacao
+      obsevacao,
     });
 
     // Atualiza saldo do caixa apenas se o meio de pagamento for dinheiro
@@ -191,7 +191,6 @@ exports.fecharCaixa = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 // Listar Caixas
 exports.listarCaixas = async (req, res) => {
   try {

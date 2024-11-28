@@ -17,7 +17,7 @@ exports.criarReceber = async (req, res) => {
       documento_origem,
       parcelas
     } = req.body;
-
+    
     // Validações
     if (!parcelas || !Array.isArray(parcelas) || parcelas.length === 0) {
       await session.abortTransaction();
@@ -185,8 +185,10 @@ exports.estornarLiquidacao = async (req, res) => {
       origem: 'estorno_recebimento',
       observacao: `Estorno parcial de recebimento - ${movimentacaoOriginal.observacao}`
     });
-
+    
     console.log(movimentacaoEstorno);
+    
+
 
     // Marcar liquidação como parcialmente estornada
     receber.liquidacoes[liquidacaoIndex].estornado = valorEstorno === liquidacao.valor;
@@ -289,7 +291,7 @@ exports.liquidarReceber = async (req, res) => {
         tipo_movimentacao: 'entrada',
         valor: valorParaLiquidar,
         origem: 'recebimento',
-        documento_origem: receber._id,
+        documento_origem: receber.codigo_receber,
         meio_pagamento,
         categoria_contabil: 'receita',
         observacao: parcelas.find(p => p.receberId === receber._id.toString()).observacao || `Liquidação de recebimento ${receber.codigo_receber}`

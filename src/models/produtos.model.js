@@ -137,10 +137,6 @@ const produtoSchema = new mongoose.Schema({
 
 });
 
-// Índice composto para garantir que `codigo_produto` seja único para cada loja
-// produtoSchema.index({ codigo_loja: 1, codigo_produto: 1 }, { unique: true });
-
-
 const Produto = mongoose.model('Produto', produtoSchema);
 
 module.exports = Produto;

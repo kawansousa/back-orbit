@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Comprovante de Venda</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            font-size: 10pt;
+        }
+        
+        .receipt-container {
+            max-width: 80mm; /* Tamanho padrão de bobina térmica */
+            width: 100%;
+            margin: 0 auto;
+            background-color: white;
+            padding: 10mm;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .receipt-header {
+            text-align: center;
+            border-bottom: 1px dashed #999;
+            padding-bottom: 5mm;
+            margin-bottom: 5mm;
+        }
+        
+        .receipt-header h1 {
+            font-size: 12pt;
+            color: #333;
+            margin-bottom: 2mm;
+        }
+        
+        .company-info {
+            text-align: center;
+            font-size: 8pt;
+            color: #666;
+            margin-bottom: 5mm;
+        }
+        
+        .sale-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 8pt;
+            margin-bottom: 5mm;
+            border-bottom: 1px dashed #999;
+            padding-bottom: 3mm;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5mm;
+        }
+        
+        .items-table th, 
+        .items-table td {
+            border-bottom: 1px dashed #999;
+            padding: 2mm;
+            font-size: 8pt;
+            text-align: left;
+        }
+        
+        .items-table th {
+            background-color: #f9f9f9;
+            font-weight: bold;
+        }
+        
+        .receipt-summary {
+            text-align: right;
+            border-top: 1px dashed #999;
+            padding-top: 3mm;
+        }
+        
+        .payment-info {
+            font-size: 8pt;
+            margin-top: 5mm;
+            border-top: 1px dashed #999;
+            padding-top: 3mm;
+        }
+        
+        .footer {
+            text-align: center;
+            font-size: 6pt;
+            color: #666;
+            margin-top: 5mm;
+            border-top: 1px dashed #999;
+            padding-top: 3mm;
+        }
+        
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .receipt-container {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-container">
+        <div class="receipt-header">
+            <h1>COMPROVANTE DE VENDA</h1>
+            <div class="company-info">
+                <%= venda.empresa_nome || 'Nome da Empresa' %><br>
+                CNPJ: <%= venda.empresa_cnpj || 'XX.XXX.XXX/0001-XX' %><br>
+                <%= venda.empresa_endereco || 'Endereço da Empresa' %>
+            </div>
+        </div>
+
+        <div class="sale-details">
+            <div>
+                <strong>Código da Venda:</strong> <%= venda.codigo_venda %><br>
+                <strong>Data:</strong> <%= new Date(venda.data_emissao).toLocaleString('pt-BR') %>
+            </div>
+            <div>
+                <strong>Vendedor:</strong> <%= venda.vendedor_nome || 'Não identificado' %>
+            </div>
+        </div>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Qtd</th>
+                    <th>Unit.</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% venda.itens.forEach(item => { %>
+                    <tr>
+                        <td><%= item.descricao %></td>
+                        <td><%= item.quantidade %></td>
+                        <td>R$ <%= item.preco_unitario.toFixed(2) %></td>
+                        <td>R$ <%= item.total_unitario.toFixed(2) %></td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+
+        <div class="receipt-summary">
+            <p><strong>Subtotal:</strong> R$ <%= venda.valores.subtotal.toFixed(2) %></p>
+            <% if (venda.valores.desconto_valor_total > 0) { %>
+                <p><strong>Desconto:</strong> R$ <%= venda.valores.desconto_valor_total.toFixed(2) %></p>
+            <% } %>
+            <p><strong>Total:</strong> R$ <%= venda.valores.total.toFixed(2) %></p>
+        </div>
+
+        <div class="payment-info">
+            <strong>Pagamento:</strong>
+            <% venda.forma_pagamento.forEach(pagamento => { %>
+                <p>
+                    <%= 
+                        {
+                            'dinheiro': 'Dinheiro', 
+                            'cartao_credito': 'Cartão de Crédito', 
+                            'cartao_debito': 'Cartão de Débito', 
+                            'pix': 'PIX', 
+                            'boleto': 'Boleto', 
+                            'transferencia': 'Transferência', 
+                            'aprazo': 'A Prazo'
+                        }[pagamento.meio_pagamento] 
+                    %> 
+                    - R$ <%= pagamento.valor_pagamento.toFixed(2) %>
+                </p>
+            <% }); %>
+        </div>
+
+        <% if (venda.parcelas && venda.parcelas.length > 0) { %>
+            <div class="payment-info">
+                <strong>Parcelas:</strong>
+                <% venda.parcelas.forEach(parcela => { %>
+                    <p>
+                        R$ <%= parcela.valor_total.toFixed(2) %> 
+                        - Venc.: <%= new Date(parcela.data_vencimento).toLocaleDateString('pt-BR') %>
+                    </p>
+                <% }); %>
+            </div>
+        <% } %>
+
+        <div class="footer">
+            Documento não fiscal | Comprovante de Venda
+        </div>
+    </div>
+</body>
+</html>

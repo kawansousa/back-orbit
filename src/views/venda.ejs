@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Comprovante de Venda</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2px;
+            font-size: 10px;
+        }
+        .invoice-container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+        }
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .company-info h1 {
+            margin: 0;
+            color: #007bff;
+            font-size: 24px;
+        }
+        .invoice-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .client-info, .sale-info {
+            width: 45%;
+        }
+        .invoice-items {
+            font-size: 10px;
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .invoice-items th, .invoice-items td {
+           font-size: 10px;
+            border: 1px solid #ddd;
+            padding: 3px;
+            text-align: left;
+        }
+        .invoice-items th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .invoice-summary {
+            text-align: right;
+            margin-top: 20px;
+        }
+        .payment-info {
+            margin-top: 5px;
+            border-top: 1px solid #ddd;
+        }
+        .parcelas {
+            width: 30%;
+            border-collapse: collapse;
+        }
+        .parcelas th, .parcelas td {
+            border: 1px solid #ddd;
+            padding: 2px;
+            text-align: left;
+        }
+        .status-pago { color: green; }
+        .status-cancelado { color: red; }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="invoice-header">
+            <div class="company-info">
+                <h1>Comprovante de Venda</h1>
+                <p>Loja: <%= venda.codigo_loja %> | Empresa: <%= venda.codigo_empresa %></p>
+            </div>
+            <div>
+                <strong>Código da Venda:</strong> <%= venda.codigo_venda %><br>
+                <strong>Data de Emissão:</strong> <%= new Date(venda.data_emissao).toLocaleDateString('pt-BR') %>
+            </div>
+        </div>
+
+        <div class="invoice-details">
+            <div class="client-info">
+                <h3>Informações do Cliente</h3>
+                <% if (venda.cliente) { %>
+                    <p><strong>Nome:</strong> <%= venda.cliente.nome %></p>
+                    <p><strong>CPF:</strong> <%= venda.cliente.cpf %></p>
+                <% } else if (venda.cliente_sem_cadastro && venda.cliente_sem_cadastro.nome) { %>
+                    <p><strong>Nome:</strong> <%= venda.cliente_sem_cadastro.nome %></p>
+                <% } %>
+            </div>
+            <div class="sale-info">
+                <h3>Detalhes da Venda</h3>
+                <p><strong>Tipo de Venda:</strong> <%= venda.tipo === 'avista' ? 'À Vista' : 'A Prazo' %></p>
+                <p><strong>Status:</strong> 
+                    <span class="status-<%= venda.status %>">
+                        <%= venda.status === 'pago' ? 'Pago' : 'Cancelado' %>
+                    </span>
+                </p>
+            </div>
+        </div>
+        <div class="payment-info">
+          <h3>Itens</h3>
+
+        <table class="invoice-items">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Descrição</th>
+                    <th>Qtd</th>
+                    <th>Preço Unit.</th>
+                    <th>Desconto</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% venda.itens.forEach(item => { %>
+                    <tr>
+                        <td><%= item.codigo_produto %></td>
+                        <td><%= item.descricao %></td>
+                        <td><%= item.quantidade %></td>
+                        <td>R$ <%= item.preco_unitario.toFixed(2) %></td>
+                        <td><%= item.desconto_percentual %>% (R$ <%= item.desconto_valor.toFixed(2) %>)</td>
+                        <td>R$ <%= item.total_unitario.toFixed(2) %></td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        </div>
+        <div class="invoice-summary">
+            <p><strong>Subtotal:</strong> R$ <%= venda.valores.subtotal.toFixed(2) %></p>
+            <p><strong>Desconto Total:</strong> <%= venda.valores.desconto_percentual_total %>% (R$ <%= venda.valores.desconto_valor_total.toFixed(2) %>)</p>
+            <p><strong>Total Final:</strong> R$ <%= venda.valores.total.toFixed(2) %></p>
+        </div>
+
+        <div class="payment-info">
+            <h3>Formas de Pagamento</h3>
+            <% venda.forma_pagamento.forEach(pagamento => { %>
+                <p>
+                    <strong>Meio:</strong> <%= 
+                        {
+                            'dinheiro': 'Dinheiro', 
+                            'cartao_credito': 'Cartão de Crédito', 
+                            'cartao_debito': 'Cartão de Débito', 
+                            'pix': 'PIX', 
+                            'boleto': 'Boleto', 
+                            'transferencia': 'Transferência', 
+                            'aprazo': 'A Prazo'
+                        }[pagamento.meio_pagamento] 
+                    %> 
+                    - <strong>Valor:</strong> R$ <%= pagamento.valor_pagamento.toFixed(2) %>
+                </p>
+            <% }); %>
+        </div>
+
+        <% if (venda.parcelas && venda.parcelas.length > 0) { %>
+            <div>
+                <h3>Parcelas</h3>
+                <table class="parcelas">
+                    <thead>
+                        <tr>
+                            <th>Valor</th>
+                            <th>Data de Vencimento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% venda.parcelas.forEach(parcela => { %>
+                            <tr>
+                                <td>R$ <%= parcela.valor_total.toFixed(2) %></td>
+                                <td><%= new Date(parcela.data_vencimento).toLocaleDateString('pt-BR') %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        <% } %>
+
+        <% if (venda.observacoes) { %>
+            <div class="payment-info">
+                <h3>Observações</h3>
+                <p><%= venda.observacoes %></p>
+            </div>
+        <% } %>
+    </div>
+</body>
+</html>

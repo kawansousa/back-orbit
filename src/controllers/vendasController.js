@@ -4,6 +4,10 @@ const Receber = require('../models/receber.model');
 const Movimentacao = require('../models/movimentacoes.model');
 const Caixa = require('../models/caixa.model');
 const Produto = require('../models/produtos.model'); // Import the Produto model
+const path = require('path');
+const ejs = require('ejs');
+const puppeteer = require('puppeteer');
+
 
 exports.criarVenda = async (req, res) => {
   const session = await mongoose.startSession();
@@ -29,7 +33,7 @@ exports.criarVenda = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!cliente || !vendedor || !itens || !forma_pagamento) {
+    if (!codigo_loja || !codigo_empresa || !codigo_venda || !vendedor || !itens || !forma_pagamento) {
       await session.abortTransaction();
       return res.status(400).json({ message: 'Dados de venda inválidos' });
     }
@@ -85,7 +89,6 @@ exports.criarVenda = async (req, res) => {
       movimentacoes.push(movimentacao.save({ session }));
     }
 
-
     const recebimentos = [];
 
     if (novaVenda.tipo === 'aprazo') {
@@ -114,9 +117,7 @@ exports.criarVenda = async (req, res) => {
 
         recebimentos.push(novoReceber.save({ session }));
       }
-
     }
-
 
     // Save movements
     await Promise.all(movimentacoes);
@@ -144,6 +145,7 @@ exports.criarVenda = async (req, res) => {
     res.status(201).json(novaVenda);
   } catch (error) {
     await session.abortTransaction();
+    console.error(error); // Log the error for debugging
     res.status(500).json({ error: error.message });
   } finally {
     session.endSession();
@@ -551,3 +553,127 @@ exports.listarVendas = async (req, res) => {
     });
   }
 };
+
+exports.generateVendaPDF = async (req, res) => {
+  try {
+    console.log('Iniciando geração de PDF');
+    const { codigo_loja, codigo_empresa } = req.query;
+
+    if (!codigo_loja || !codigo_empresa) {
+      console.error('Faltando codigo_loja ou codigo_empresa');
+      return res.status(400).json({
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
+      });
+    }
+
+    const venda = await Venda.findOne({
+      _id: req.params.id,
+      codigo_loja,
+      codigo_empresa,
+    }).populate('cliente', 'nome cpf');
+
+    if (!venda) {
+      console.error('Venda não encontrada');
+      return res.status(404).json({
+        error: 'Venda não encontrada.',
+      });
+    }
+
+    console.log('Venda encontrada:', venda);
+    const templatePath = path.join(__dirname, '../views/venda.ejs');
+    const html = await ejs.renderFile(templatePath, { venda });
+    console.log('HTML gerado com sucesso');
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      },
+      preferCSSPageSize: true
+    });
+
+    console.log('PDF gerado com sucesso');
+
+    await browser.close();
+
+    res.setHeader('Content-Disposition', 'attachment; filename=venda.pdf');
+    res.end(pdfBuffer);
+
+  } catch (error) {
+    console.error('Erro ao gerar PDF:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/* exports.generateVendaPDF = async (req, res) => {
+  try {
+    console.log('Iniciando geração de PDF');
+    const { codigo_loja, codigo_empresa } = req.query;
+
+    if (!codigo_loja || !codigo_empresa) {
+      console.error('Faltando codigo_loja ou codigo_empresa');
+      return res.status(400).json({
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
+      });
+    }
+
+    const venda = await Venda.findOne({
+      _id: req.params.id,
+      codigo_loja,
+      codigo_empresa,
+    }).populate('cliente', 'nome cpf');
+
+    if (!venda) {
+      console.error('Venda não encontrada');
+      return res.status(404).json({
+        error: 'Venda não encontrada.',
+      });
+    }
+
+    console.log('Venda encontrada:', venda);
+    const templatePath = path.join(__dirname, '../views/bobinaVenda.ejs');
+    const html = await ejs.renderFile(templatePath, { venda });
+    console.log('HTML gerado com sucesso');
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+
+    const pdfBuffer = await page.pdf({
+      width: '80mm',
+      printBackground: true,
+      margin: {
+        top: '2mm',
+        right: '2mm',
+        bottom: '2mm',
+        left: '2mm'
+      },
+      preferCSSPageSize: true
+    });
+
+    console.log('PDF gerado com sucesso');
+
+    await browser.close();
+
+    res.setHeader('Content-Disposition', 'attachment; filename=venda.pdf');
+    res.end(pdfBuffer);
+
+  } catch (error) {
+    console.error('Erro ao gerar PDF:', error);
+    res.status(500).json({ error: error.message });
+  }
+}; */

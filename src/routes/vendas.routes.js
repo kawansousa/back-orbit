@@ -9,5 +9,7 @@ router.post('/', autoIncrementMovimento, autoIncrementreceber, autoIncrementVend
 router.get('/', vendaController.listarVendas);
 router.patch('/cancelar', autoIncrementMovimento, vendaController.cancelarVenda);
 router.put('/alterar', autoIncrementMovimento, vendaController.alterarVenda);
+router.get('/:id/pdf', vendaController.generateVendaPDF);
+
 
 module.exports = router;

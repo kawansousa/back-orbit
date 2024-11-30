@@ -556,7 +556,6 @@ exports.listarVendas = async (req, res) => {
 
 exports.generateVendaPDF = async (req, res) => {
   try {
-    console.log('Iniciando geração de PDF');
     const { codigo_loja, codigo_empresa } = req.query;
 
     if (!codigo_loja || !codigo_empresa) {
@@ -579,10 +578,8 @@ exports.generateVendaPDF = async (req, res) => {
       });
     }
 
-    console.log('Venda encontrada:', venda);
     const templatePath = path.join(__dirname, '../views/venda.ejs');
     const html = await ejs.renderFile(templatePath, { venda });
-    console.log('HTML gerado com sucesso');
 
     const browser = await puppeteer.launch({
       headless: true,
@@ -603,7 +600,6 @@ exports.generateVendaPDF = async (req, res) => {
       preferCSSPageSize: true
     });
 
-    console.log('PDF gerado com sucesso');
 
     await browser.close();
 

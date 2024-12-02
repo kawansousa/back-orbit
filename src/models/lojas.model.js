@@ -1,8 +1,6 @@
 const mongoose = require('mongoose');
 const incrementarCodigos = require('../middlewares/incrementarCodigos');
 
-
-
 const configuracoesSchema = new mongoose.Schema({
   fiscal: {
     token_homologacao_fiscal: { type: String },
@@ -33,7 +31,9 @@ const empresaSchema = new mongoose.Schema({
     cep: { type: String },
   },
   data_criacao_filiao: { type: Date, default: Date.now },
-  configuracao: [configuracoesSchema]
+  configuracao: [configuracoesSchema],
+  logo: { type: String, default: '' },
+  rodape: { type: String, default: '' }
 });
 
 // Schema da Loja

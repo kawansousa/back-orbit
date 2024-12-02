@@ -7,13 +7,15 @@ const Produto = require('../models/produtos.model'); // Import the Produto model
 const path = require('path');
 const ejs = require('ejs');
 const puppeteer = require('puppeteer');
+const Loja = require('../models/lojas.model');
+
 
 
 exports.criarVenda = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
+    session.startTransaction();
     const {
       codigo_loja,
       codigo_empresa,
@@ -144,10 +146,14 @@ exports.criarVenda = async (req, res) => {
 
     res.status(201).json(novaVenda);
   } catch (error) {
-    await session.abortTransaction();
-    console.error(error); // Log the error for debugging
+    // Ensure transaction is aborted if an error occurs
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error(error);
     res.status(500).json({ error: error.message });
   } finally {
+    // Always end the session, regardless of success or failure
     session.endSession();
   }
 };
@@ -528,13 +534,13 @@ exports.listarVendas = async (req, res) => {
     const vendas = await Venda.find(query)
       .populate({
         path: 'cliente',
-        select: 'nome codigo_cliente', // Selecionar campos específicos
-        match: { codigo_empresa, codigo_loja } // Filtrar cliente pela mesma empresa/loja
+        select: 'nome codigo_cliente',
+        match: { codigo_empresa, codigo_loja }
       })
-      .sort({ createdAt: -1 })
+      .sort({ codigo_venda: -1, createdAt: -1 }) // Ordena primeiro por codigo_venda em ordem decrescente
       .skip(skip)
       .limit(limitNumber)
-      .lean(); // Usar lean para melhor performance
+      .lean();
 
     const total = await Venda.countDocuments(query);
 
@@ -545,6 +551,43 @@ exports.listarVendas = async (req, res) => {
       totalPages: Math.ceil(total / limitNumber),
       pageSize: limitNumber
     });
+  } catch (error) {
+    console.error('Erro ao listar vendas:', error);
+    res.status(500).json({
+      message: 'Erro interno do servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+exports.getVendaById = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa } = req.query;
+
+    // Validate mandatory parameters
+    if (!codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+      });
+    }
+
+    // Find client by ID, validating store and company
+    const venda = await Venda.findOne({
+      _id: req.params.id,
+      codigo_loja,
+      codigo_empresa,
+    });
+
+    // Check if client was found
+    if (!venda) {
+      return res.status(404).json({
+        error: 'Cliente não encontrado para essa loja e empresa.'
+      });
+    }
+
+    // Return found client
+    res.status(200).json(venda);
+
   } catch (error) {
     console.error('Erro ao listar vendas:', error);
     res.status(500).json({
@@ -565,6 +608,18 @@ exports.generateVendaPDF = async (req, res) => {
       });
     }
 
+    const loja = await Loja.findOne({ 
+      codigo_loja, 
+      'empresas.codigo_empresa': codigo_empresa 
+    });
+
+    if (!loja) {
+      console.error('Loja não encontrada');
+      return res.status(404).json({
+        error: 'Loja não encontrada.',
+      });
+    }
+
     const venda = await Venda.findOne({
       _id: req.params.id,
       codigo_loja,
@@ -577,9 +632,18 @@ exports.generateVendaPDF = async (req, res) => {
         error: 'Venda não encontrada.',
       });
     }
+    
+    // Find the logo for the specific empresa
+    const empresa = loja.empresas.find(emp => emp.codigo_empresa === parseInt(codigo_empresa));
+    const logo = empresa ? empresa.logo : null;
+    const rodape = empresa ? empresa.rodape : null;
 
     const templatePath = path.join(__dirname, '../views/venda.ejs');
-    const html = await ejs.renderFile(templatePath, { venda });
+    const html = await ejs.renderFile(templatePath, { 
+      venda,
+      logo,
+      rodape  // Pass the logo to the template
+    });
 
     const browser = await puppeteer.launch({
       headless: true,
@@ -599,7 +663,6 @@ exports.generateVendaPDF = async (req, res) => {
       },
       preferCSSPageSize: true
     });
-
 
     await browser.close();
 

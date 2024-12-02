@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
 const incrementarCodigos = require('../middlewares/incrementarCodigos');
 
-const configuracoesSchema = new mongoose.Schema({
-  fiscal: {
-    token_homologacao_fiscal: { type: String },
-    token_produçao_fiscal: { type: String },
-    referencia_homologacao: { type: String },
-    referencia_producao: { type: String },
-  },
-  logo: { type: String },
-});
+// const configuracoesSchema = new mongoose.Schema({
+//   fiscal: {
+//     token_homologacao_fiscal: { type: String },
+//     token_produçao_fiscal: { type: String },
+//     referencia_homologacao: { type: String },
+//     referencia_producao: { type: String },
+//   },
+//   logo: { type: String },
+// });
 
 // Schema de Empresa
 const empresaSchema = new mongoose.Schema({
@@ -31,9 +31,9 @@ const empresaSchema = new mongoose.Schema({
     cep: { type: String },
   },
   data_criacao_filiao: { type: Date, default: Date.now },
-  configuracao: [configuracoesSchema],
-  logo: { type: String, default: '' },
-  rodape: { type: String, default: '' }
+  // configuracao: [configuracoesSchema],
+  // logo: { type: String, default: '' },
+  // rodape: { type: String, default: '' }
 });
 
 // Schema da Loja

@@ -20,9 +20,6 @@ exports.createOrcamento = async (req, res) => {
       valores,
     } = req.body;
 
-    console.log(codigo_loja, codigo_empresa, codigo_orcamento, cliente, cliente_sem_cadastro, vendedor, itens, observacoes, valores,);
-
-
     // Validações básicas
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -178,7 +175,18 @@ exports.getOrcamentoById = async (req, res) => {
 
 exports.updateOrcamento = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, status, itens, observacoes } = req.body;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      codigo_orcamento,
+      cliente,
+      cliente_sem_cadastro,
+      vendedor,
+      itens,
+      observacoes,
+      valores,
+      status, // Adicionado explicitamente para verificar mudanças de status
+    } = req.body;
     
     const usuario = req.body.usuario || 'Sistema'; // Idealmente viria do token de autenticação
 
@@ -188,10 +196,23 @@ exports.updateOrcamento = async (req, res) => {
       });
     }
 
+    if (!cliente && !cliente_sem_cadastro) {
+      return res.status(400).json({
+        error: 'É necessário informar um cliente cadastrado ou dados do cliente sem cadastro.',
+      });
+    }
+
+    if (!itens || itens.length === 0) {
+      return res.status(400).json({
+        error: 'O orçamento deve conter pelo menos um item.',
+      });
+    }
+
     const orcamento = await Orcamento.findOne({
       _id: req.params.id,
       codigo_loja,
       codigo_empresa,
+      codigo_orcamento,
     });
 
     if (!orcamento) {
@@ -206,7 +227,7 @@ exports.updateOrcamento = async (req, res) => {
       });
     }
 
-    // Se houver novos itens, recalcula os valores
+    // Atualiza os itens e recalcula os valores se houver novos itens
     if (itens) {
       const itensCalculados = itens.map(item => {
         const subtotal_unitario = item.preco_unitario * item.quantidade;
@@ -228,11 +249,16 @@ exports.updateOrcamento = async (req, res) => {
       orcamento.itens = itensCalculados;
       orcamento.valores = {
         subtotal,
-        desconto_percentual_total: (desconto_total / subtotal) * 100,
+        desconto_percentual_total: subtotal ? (desconto_total / subtotal) * 100 : 0,
         desconto_valor_total: desconto_total,
         total
       };
     }
+
+    // Atualiza os outros campos recebidos
+    if (cliente !== undefined) orcamento.cliente = cliente;
+    if (cliente_sem_cadastro !== undefined) orcamento.cliente_sem_cadastro = cliente_sem_cadastro;
+    if (vendedor !== undefined) orcamento.vendedor = vendedor;
 
     if (status && status !== orcamento.status) {
       orcamento.historico.push({
@@ -257,6 +283,7 @@ exports.updateOrcamento = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 exports.deleteOrcamento = async (req, res) => {
   try {

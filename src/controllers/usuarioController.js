@@ -74,8 +74,24 @@ exports.loginUser = async (req, res) => {
 };
 // Listar todos os usuários
 exports.getUsers = async (req, res) => {
+  const { codigo_empresas, codigo_loja } = req.query;
+
   try {
-    const users = await User.find();
+    // Verifica se os códigos de empresa e loja foram fornecidos
+    if (!codigo_empresas || !codigo_loja) {
+      return res.status(400).json({ error: 'Código de empresa e loja são obrigatórios' });
+    }
+
+    // Filtra usuários que têm acesso à empresa e loja especificadas
+    const users = await User.find({
+      'acesso_loja': {
+        $elemMatch: {
+          'codigo_loja': codigo_loja,
+          'codigo_empresas.codigo': codigo_empresas
+        }
+      }
+    });
+
     res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });

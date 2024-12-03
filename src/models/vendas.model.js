@@ -101,7 +101,7 @@ const vendaSchema = new mongoose.Schema({
   },
   vendedor: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Usuario',
+    ref: 'User',
     required: true
   },
 

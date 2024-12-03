@@ -9,8 +9,6 @@ const ejs = require('ejs');
 const puppeteer = require('puppeteer');
 const Loja = require('../models/lojas.model');
 
-
-
 exports.criarVenda = async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -36,8 +34,7 @@ exports.criarVenda = async (req, res) => {
 
     // Validate required fields
     if (!codigo_loja || !codigo_empresa || !codigo_venda || !vendedor || !itens || !forma_pagamento) {
-      await session.abortTransaction();
-      return res.status(400).json({ message: 'Dados de venda inválidos' });
+      throw new Error('Dados de venda inválidos');
     }
 
     // Save sale
@@ -66,15 +63,12 @@ exports.criarVenda = async (req, res) => {
     }).session(session);
 
     if (!caixa) {
-      await session.abortTransaction();
-      return res.status(400).json({ message: 'Caixa não está aberto' });
+      throw new Error('Caixa não está aberto');
     }
 
     // Register cash movements for each payment method
-    const movimentacoes = [];
-
-    for (const pagamento of forma_pagamento) {
-      const movimentacao = new Movimentacao({
+    const movimentacoes = forma_pagamento.map(pagamento => 
+      new Movimentacao({
         codigo_loja,
         codigo_empresa,
         caixaId: caixa._id,
@@ -87,9 +81,8 @@ exports.criarVenda = async (req, res) => {
         documento_origem: novaVenda.codigo_venda,
         origem: 'venda',
         categoria_contabil: 'receita'
-      });
-      movimentacoes.push(movimentacao.save({ session }));
-    }
+      })
+    );
 
     const recebimentos = [];
 
@@ -98,8 +91,7 @@ exports.criarVenda = async (req, res) => {
         const { valor_total, data_vencimento, observacao, codigo_receber } = parcelas[i];
 
         if (!valor_total || valor_total <= 0) {
-          await session.abortTransaction();
-          return res.status(400).json({ message: `Valor total inválido na parcela ${i + 1}` });
+          throw new Error(`Valor total inválido na parcela ${i + 1}`);
         }
 
         const novoReceber = new Receber({
@@ -117,16 +109,17 @@ exports.criarVenda = async (req, res) => {
           fatura: `${i + 1}/${parcelas.length}`
         });
 
-        recebimentos.push(novoReceber.save({ session }));
+        recebimentos.push(novoReceber);
       }
     }
 
-    // Save movements
-    await Promise.all(movimentacoes);
-    await caixa.save({ session });
-
-    // Save sale
-    await novaVenda.save({ session });
+    // Save all documents within the transaction
+    await Promise.all([
+      ...movimentacoes.map(mov => mov.save({ session })),
+      caixa.save({ session }),
+      novaVenda.save({ session }),
+      ...recebimentos.map(receb => receb.save({ session }))
+    ]);
 
     // Deduct stock for each item in the sale
     for (const item of itens) {
@@ -142,6 +135,7 @@ exports.criarVenda = async (req, res) => {
       }
     }
 
+    // Commit the transaction
     await session.commitTransaction();
 
     res.status(201).json(novaVenda);
@@ -444,7 +438,6 @@ exports.alterarVenda = async (req, res) => {
   }
 };
 
-
 exports.listarVendas = async (req, res) => {
   try {
     const {
@@ -536,6 +529,18 @@ exports.listarVendas = async (req, res) => {
         path: 'cliente',
         select: 'nome codigo_cliente',
         match: { codigo_empresa, codigo_loja }
+      })
+      .populate({
+        path: 'vendedor',
+        select: 'name', // Assumindo que o campo de nome do vendedor seja 'name'
+        match: {
+          'acesso_loja': {
+            $elemMatch: {
+              'codigo_loja': codigo_loja,
+              'codigo_empresas.codigo': codigo_empresa
+            }
+          }
+        }
       })
       .sort({ codigo_venda: -1, createdAt: -1 }) // Ordena primeiro por codigo_venda em ordem decrescente
       .skip(skip)
@@ -674,65 +679,3 @@ exports.generateVendaPDF = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
-/* exports.generateVendaPDF = async (req, res) => {
-  try {
-    console.log('Iniciando geração de PDF');
-    const { codigo_loja, codigo_empresa } = req.query;
-
-    if (!codigo_loja || !codigo_empresa) {
-      console.error('Faltando codigo_loja ou codigo_empresa');
-      return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
-      });
-    }
-
-    const venda = await Venda.findOne({
-      _id: req.params.id,
-      codigo_loja,
-      codigo_empresa,
-    }).populate('cliente', 'nome cpf');
-
-    if (!venda) {
-      console.error('Venda não encontrada');
-      return res.status(404).json({
-        error: 'Venda não encontrada.',
-      });
-    }
-
-    console.log('Venda encontrada:', venda);
-    const templatePath = path.join(__dirname, '../views/bobinaVenda.ejs');
-    const html = await ejs.renderFile(templatePath, { venda });
-    console.log('HTML gerado com sucesso');
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
-
-    const pdfBuffer = await page.pdf({
-      width: '80mm',
-      printBackground: true,
-      margin: {
-        top: '2mm',
-        right: '2mm',
-        bottom: '2mm',
-        left: '2mm'
-      },
-      preferCSSPageSize: true
-    });
-
-    console.log('PDF gerado com sucesso');
-
-    await browser.close();
-
-    res.setHeader('Content-Disposition', 'attachment; filename=venda.pdf');
-    res.end(pdfBuffer);
-
-  } catch (error) {
-    console.error('Erro ao gerar PDF:', error);
-    res.status(500).json({ error: error.message });
-  }
-}; */

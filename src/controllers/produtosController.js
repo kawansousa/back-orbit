@@ -1,6 +1,9 @@
 // controllers/produtos.controller.js
 const Produto = require('../models/produtos.model');
 const Grupos = require('../models/grupos.model');
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path')
 
 
 exports.getProdutos = async (req, res) => {
@@ -271,6 +274,78 @@ exports.updateProduto = async (req, res) => {
 
     // Retornar o produto atualizado
     res.status(200).json({ message: 'Produto atualizado', produto: updatedProduto });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/* importação */
+exports.importProdutosFromExcel = async (req, res) => {
+  try {
+    const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Produtos.xlsx');
+
+    // Verifica se o arquivo existe
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Arquivo Excel não encontrado.' });
+    }
+
+    // Lê o arquivo Excel
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    // Remover a primeira linha (cabeçalho)
+    jsonData.shift();
+
+    const produtos = jsonData.map(linha => {
+      return {
+        codigo_loja: '1',
+        codigo_empresa: '1',
+        codigo_produto: parseInt(linha[3]),
+        codigo_barras: parseInt(linha[4]),
+        descricao: linha[5],
+        precos: [
+          {
+            preco_compra: parseFloat(linha[21]),
+            cma: parseFloat(linha[22]),
+            preco_venda: parseFloat(linha[24]),
+            preco_atacado: parseFloat(linha[25]),
+            ultimos_precos: {
+              ultimo_preco_compra: 0,
+              ultimo_cma: 0,
+              ultimo_preco_venda: 0,
+              ultimo_preco_atacada: 0,
+            },
+          },
+        ],
+        estoque: [
+          {
+            estoque: parseInt(linha[15]),
+            estoque_deposito: 0,
+            estoque_usado: 0,
+            unidade: 'UN',
+            minimo_estoque: 0,
+          },
+        ],
+        encargos: [
+          {
+            ncm: parseInt(linha[10]),
+            cest: 0,
+            icms: 0,
+            ipi: 0,
+            pis: 0,
+            cofins: 0,
+          },
+        ],
+      };
+    });
+
+    // Salva os dados em um arquivo JSON
+    const jsonFilePath = path.join(__dirname, '..', 'uploads', 'ites.json');
+    fs.writeFileSync(jsonFilePath, JSON.stringify(produtos, null, 2), 'utf8');
+
+    res.status(200).json({ message: 'Produtos importados e salvos em ites.json com sucesso!' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

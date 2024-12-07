@@ -132,7 +132,6 @@ exports.getProdutos = async (req, res) => {
   }
 };
 
-
 exports.createProduto = async (req, res) => {
   try {
     const {
@@ -282,7 +281,7 @@ exports.updateProduto = async (req, res) => {
 /* importação */
 exports.importProdutosFromExcel = async (req, res) => {
   try {
-    const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Produtos.xlsx');
+    const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Produtos.xls');
 
     // Verifica se o arquivo existe
     if (!fs.existsSync(filePath)) {
@@ -304,6 +303,7 @@ exports.importProdutosFromExcel = async (req, res) => {
         codigo_empresa: '1',
         codigo_produto: parseInt(linha[3]),
         codigo_barras: parseInt(linha[4]),
+        referencia: parseInt(linha[47]),
         descricao: linha[5],
         precos: [
           {

@@ -11,5 +11,6 @@ router.get('/produtos', ProdutosController.getProdutos);
 router.get('/produtos/:id', ProdutosController.getProdutosById);
 router.put('/produtos/:id', ProdutosController.updateProduto);
 router.post('/produtosImportacao', ProdutosController.importProdutosFromExcel);
+router.post('/clientesImportacao', ProdutosController.importClientesFromExcel);
 
 module.exports = router;

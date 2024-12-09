@@ -4,6 +4,7 @@ const Grupos = require('../models/grupos.model');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path')
+const Cidade = require('../models/cidades.model');
 
 
 exports.getProdutos = async (req, res) => {
@@ -343,6 +344,77 @@ exports.importProdutosFromExcel = async (req, res) => {
 
     // Salva os dados em um arquivo JSON
     const jsonFilePath = path.join(__dirname, '..', 'uploads', 'ites.json');
+    fs.writeFileSync(jsonFilePath, JSON.stringify(produtos, null, 2), 'utf8');
+
+    res.status(200).json({ message: 'Produtos importados e salvos em ites.json com sucesso!' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.importClientesFromExcel = async (req, res) => {
+  try {
+    const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Clientes.xls');
+
+    // Verifica se o arquivo existe
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Arquivo Excel não encontrado.' });
+    }
+
+    // Lê o arquivo Excel
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    jsonData.shift();
+
+    const getCidadeCodigo = async (nomeCidade) => {
+      const nomeCidadeMinusculo = nomeCidade.toLowerCase();
+      const cidade = await Cidade.findOne({ nome: { $regex: new RegExp(`^${nomeCidadeMinusculo}$`, 'i') } });
+      return cidade ? cidade.codigo : null;
+    };
+
+
+    const produtos = await Promise.all(jsonData.map(async (linha) => {
+      const nomeCidade = linha[8]; // Ajuste conforme a posição correta
+      const codigoCidade = await getCidadeCodigo(nomeCidade);
+
+      return {
+        codigo_loja: '1',
+        codigo_empresa: '1',
+        codigo_cliente: parseInt(linha[2]),
+        cpf: parseInt(linha[43]) || 'nao informado',
+        rg: parseInt(linha[44]) || 'nao informado',
+        nome: linha[3] || '',
+        apelido: linha[4] || '',
+        cnpj: parseInt(linha[16]) || 'nao informado',
+        ie: parseInt(linha[17])  || 'nao informado',
+        fone: linha[13],
+        fone_secundario: linha[14],
+        email: linha[32],
+        tipo: linha[1] === 1 ? 'FISICA' : 'JURIDICA',
+        endereco: {
+          endereco: linha[6],
+          numero: linha[10],
+          bairro: linha[7],
+          cidade: `${codigoCidade}`,
+          cep: linha[12]
+        },
+        conjugue: {
+          nome: '',
+          apelido: '',
+          cpf: '',
+          fone: '',
+          email: ''
+        },
+        status: 'ativo',
+        data_cadastro: linha[50]
+
+      }
+    }));
+
+    // Salva os dados em um arquivo JSON
+    const jsonFilePath = path.join(__dirname, '..', 'uploads', 'clientes.json');
     fs.writeFileSync(jsonFilePath, JSON.stringify(produtos, null, 2), 'utf8');
 
     res.status(200).json({ message: 'Produtos importados e salvos em ites.json com sucesso!' });

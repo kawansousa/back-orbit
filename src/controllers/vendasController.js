@@ -80,7 +80,7 @@ exports.criarVenda = async (req, res) => {
         meio_pagamento: pagamento.meio_pagamento,
         documento_origem: novaVenda.codigo_venda,
         origem: 'venda',
-        categoria_contabil: 'receita'
+        categoria_contabil: '1.1.1'
       })
     );
 

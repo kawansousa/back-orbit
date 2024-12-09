@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demonstração do Resultado do Exercício (DRE)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            font-size: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f8f8;
+            color: #333;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #e8e8e8;
+        }
+        .parent-row {
+            font-weight: bold;
+            background-color: #e0e0e0;
+        }
+        .child-row {
+            background-color: #ffffff;
+        }
+        .receita { color: green; }
+        .despesa { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Demonstração do Resultado do Exercício (DRE)</h1>
+    <h2>Loja: <%= dre.codigo_loja %> - Empresa: <%= dre.codigo_empresa %></h2>
+
+    <% function renderSection(title, data) { %>
+        <h3><%= title %></h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Descrição</th>
+                    <th>Tipo de Movimentação</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% data.forEach(function(conta) { %>
+                    <tr class="parent-row">
+                        <td><%= conta.codigo_pai %></td>
+                        <td><%= conta.descricao %></td>
+                        <td></td>
+                    </tr>
+                    <% if (Array.isArray(conta.filhos)) { %>
+                        <% conta.filhos.forEach(function(filho) { %>
+                            <tr class="child-row">
+                                <td><%= filho.codigo_filho %></td>
+                                <td><%= filho.descricao %></td>
+                                <td class="<%= filho.tipo_movimentacao %>">
+                                    <%= filho.tipo_movimentacao.charAt(0).toUpperCase() + filho.tipo_movimentacao.slice(1) %>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } %>
+                <% }); %>
+            </tbody>
+        </table>
+    <% } %>
+
+    <% renderSection('Receitas Operacionais', dre.receitas_operacional) %>
+    <% renderSection('Deduções', dre.deducoes) %>
+    <% renderSection('Custos', dre.custo) %>
+    <% renderSection('Despesas Operacionais', dre.despesas_operacionais) %>
+    <% renderSection('Outras Despesas e Receitas', dre.outras_dispesas_receitas) %>
+</body>
+</html>

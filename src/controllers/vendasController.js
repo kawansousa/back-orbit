@@ -643,11 +643,13 @@ exports.generateVendaPDF = async (req, res) => {
     const logo = empresa ? empresa.logo : null;
     const rodape = empresa ? empresa.rodape : null;
 
+    console.log(empresa.logo)
+
     const templatePath = path.join(__dirname, '../views/venda.ejs');
     const html = await ejs.renderFile(templatePath, { 
       venda,
       logo,
-      rodape  // Pass the logo to the template
+      rodape
     });
 
     const browser = await puppeteer.launch({

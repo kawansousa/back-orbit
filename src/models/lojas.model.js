@@ -32,8 +32,8 @@ const empresaSchema = new mongoose.Schema({
   },
   data_criacao_filiao: { type: Date, default: Date.now },
   // configuracao: [configuracoesSchema],
-  // logo: { type: String, default: '' },
-  // rodape: { type: String, default: '' }
+   logo: { type: String, default: '' },
+   rodape: { type: String, default: '' }
 });
 
 // Schema da Loja

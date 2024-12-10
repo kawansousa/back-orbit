@@ -94,7 +94,7 @@ const orcamentoSchema = new mongoose.Schema({
       default: 0,
       min: 0
     },
-    desconto_valor__total: {
+    desconto_valor_total: {
       type: Number,
       default: 0,
       min: 0

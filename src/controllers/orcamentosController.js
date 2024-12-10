@@ -187,7 +187,6 @@ exports.updateOrcamento = async (req, res) => {
       valores,
       status, // Adicionado explicitamente para verificar mudanças de status
     } = req.body;
-    
     const usuario = req.body.usuario || 'Sistema'; // Idealmente viria do token de autenticação
 
     if (!codigo_loja || !codigo_empresa) {
@@ -247,12 +246,7 @@ exports.updateOrcamento = async (req, res) => {
       const total = subtotal - desconto_total;
 
       orcamento.itens = itensCalculados;
-      orcamento.valores = {
-        subtotal,
-        desconto_percentual_total: subtotal ? (desconto_total / subtotal) * 100 : 0,
-        desconto_valor_total: desconto_total,
-        total
-      };
+      
     }
 
     // Atualiza os outros campos recebidos
@@ -273,6 +267,9 @@ exports.updateOrcamento = async (req, res) => {
       orcamento.observacoes = observacoes;
     }
 
+    if (valores !== undefined) {
+      orcamento.valores = valores;
+    }
     await orcamento.save();
 
     res.status(200).json({

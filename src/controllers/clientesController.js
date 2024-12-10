@@ -296,6 +296,7 @@ exports.createCliente = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 exports.getClientesById = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;
@@ -321,7 +322,15 @@ exports.getClientesById = async (req, res) => {
       });
     }
 
-    // Return found client
+    // Find the city based on the city code in the client's address
+    const cidade = await Cidades.findOne({ codigo: parseInt(cliente.endereco.cidade, 10) });
+
+
+    if (cidade) {
+      cliente.endereco.cidade = cidade.nome
+    }
+
+    // Return found client with city name
     res.status(200).json(cliente);
   } catch (error) {
     res.status(500).json({ error: error.message });

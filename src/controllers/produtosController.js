@@ -380,7 +380,7 @@ exports.importClientesFromExcel = async (req, res) => {
       const codigoCidade = await getCidadeCodigo(nomeCidade);
 
       return {
-        codigo_loja: '1',
+        codigo_loja: '3',
         codigo_empresa: '1',
         codigo_cliente: parseInt(linha[2]),
         cpf: parseInt(linha[43]) || 'nao informado',

@@ -100,11 +100,9 @@ const vendaSchema = new mongoose.Schema({
     nome: { type: String },
   },
   vendedor: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,
     required: true
   },
-
   observacoes: {
     type: String,
     default: ''

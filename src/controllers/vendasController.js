@@ -67,7 +67,7 @@ exports.criarVenda = async (req, res) => {
     }
 
     // Register cash movements for each payment method
-    const movimentacoes = forma_pagamento.map(pagamento => 
+    const movimentacoes = forma_pagamento.map(pagamento =>
       new Movimentacao({
         codigo_loja,
         codigo_empresa,
@@ -314,16 +314,14 @@ exports.alterarVenda = async (req, res) => {
       status: "aberto",
     }).session(session);
 
-    const movimentacoes = await Movimentacao.find({
-      documento_origem: venda.codigo_venda,
+    const movimentacoes = await Movimentacao.findOne({
+      documento_origem: String(venda.codigo_venda), // Convertendo para string
       codigo_loja,
       codigo_empresa,
       origem: "venda",
     }).session(session);
 
-    console.log(movimentacoes);
-
-    if (!caixaAberto || movimentacoes.codigo_caixa == caixaAberto.codigo_caixa) {
+    if (caixaAberto == null || movimentacoes.codigo_caixa !== caixaAberto.codigo_caixa) {
       await session.abortTransaction();
       return res.status(400).json({ message: "Alteração só é permitida no mesmo caixa." });
     }
@@ -418,7 +416,7 @@ exports.alterarVenda = async (req, res) => {
         const novaParcela = new Receber({
           codigo_loja,
           codigo_empresa,
-          documento_origem: codigo_venda,
+          documento_origem: String(codigo_venda),
           origem: "venda",
           vencimento: parcela.vencimento,
           valor: parcela.valor,
@@ -613,9 +611,9 @@ exports.generateVendaPDF = async (req, res) => {
       });
     }
 
-    const loja = await Loja.findOne({ 
-      codigo_loja, 
-      'empresas.codigo_empresa': codigo_empresa 
+    const loja = await Loja.findOne({
+      codigo_loja,
+      'empresas.codigo_empresa': codigo_empresa
     });
 
     if (!loja) {
@@ -637,16 +635,14 @@ exports.generateVendaPDF = async (req, res) => {
         error: 'Venda não encontrada.',
       });
     }
-    
+
     // Find the logo for the specific empresa
     const empresa = loja.empresas.find(emp => emp.codigo_empresa === parseInt(codigo_empresa));
     const logo = empresa ? empresa.logo : null;
     const rodape = empresa ? empresa.rodape : null;
 
-    console.log(empresa.logo)
-
     const templatePath = path.join(__dirname, '../views/venda.ejs');
-    const html = await ejs.renderFile(templatePath, { 
+    const html = await ejs.renderFile(templatePath, {
       venda,
       logo,
       rodape

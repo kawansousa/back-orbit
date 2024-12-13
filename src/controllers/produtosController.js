@@ -300,7 +300,7 @@ exports.importProdutosFromExcel = async (req, res) => {
 
     const produtos = jsonData.map(linha => {
       return {
-        codigo_loja: '1',
+        codigo_loja: '3',
         codigo_empresa: '1',
         codigo_produto: parseInt(linha[3]),
         codigo_barras: parseInt(linha[4]),

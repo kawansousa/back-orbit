@@ -2,328 +2,211 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orçamento #<%= orcamento.codigo_orcamento %></title>
+    <title>Orçamento de Venda</title>
     <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #34495e;
-            --accent-color: #3498db;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --gray-light: #f5f6fa;
-            --gray-medium: #dcdde1;
-            --text-primary: #2d3436;
-            --text-secondary: #636e72;
-        }
-
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-size: 12px;
         }
-
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Arial', sans-serif;
             line-height: 1.6;
-            color: var(--text-primary);
-            background-color: var(--gray-light);
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            font-size: 10px;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
+        .page {
+            background-color: white;
+            width: 210mm; /* A4 width */
+            min-height: 297mm; /* A4 height */
+            margin: 0 auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
         }
 
-        .header {
+        .invoice-container {
+            flex-grow: 1;
+        }
+
+        .invoice-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--gray-medium);
+            border-bottom: 3px solid #000000;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
         }
 
-        .header-left h1 {
-            color: var(--primary-color);
-            margin-bottom: 0.5rem;
+        .invoice-header img {
+            max-height: 80px;
+            max-width: 150px;
         }
 
-        .header-right {
-            text-align: right;
+        .company-info h1 {
+            color: #000000;
+            font-size: 24px;
+            margin-bottom: 5px;
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .invoice-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
         }
 
-        .info-section {
-            background: var(--gray-light);
-            border-radius: 6px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
+        .client-info, .budget-info {
+            width: 45%;
         }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .info-item {
-            margin-bottom: 0.5rem;
-        }
-
-        .info-label {
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.25rem;
-        }
-
-        .info-value {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .section-title {
-            color: var(--primary-color);
-            margin-bottom: 1rem;
-            font-weight: 600;
-        }
-
-        table {
+        .invoice-items {
             width: 100%;
             border-collapse: collapse;
-            margin: 1rem 0;
-            background: white;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
         }
 
-        th {
-            background-color: var(--secondary-color);
-            color: white;
-            padding: 1rem;
+        .invoice-items th, .invoice-items td {
+            border: 1px solid #ddd;
+            padding: 6px;
             text-align: left;
-            font-weight: 600;
         }
 
-        td {
-            padding: 1rem;
-            border-bottom: 1px solid var(--gray-medium);
+        .invoice-items th {
+            background-color: #f8f9fa;
+            font-weight: bold;
         }
 
-        tr:hover {
-            background-color: var(--gray-light);
-        }
-
-        .total-section {
-            background: var(--gray-light);
-            border-radius: 6px;
-            padding: 1.5rem;
-            margin-top: 2rem;
-        }
-
-        .total-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .total-final {
+        .invoice-summary {
             text-align: right;
-            color: var(--primary-color);
-            font-weight: 700;
-            padding-top: 1rem;
-            border-top: 2px solid var(--gray-medium);
+            margin-top: 20px;
+            border-top: 1px solid #ddd;
         }
 
-        .historico-section {
-            margin-top: 2rem;
+        .payment-info {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
         }
 
-        .historico-item {
-            display: flex;
-            align-items: center;
-            padding: 1rem;
-            border-left: 3px solid var(--accent-color);
-            background: white;
-            margin-bottom: 0.5rem;
-            border-radius: 0 4px 4px 0;
+        .status-valido { color: green; }
+        .status-cancelado { color: red; }
+
+        .footer {
+            position: fixed;
+            bottom: 0px;
+            width: 100%;
+            text-align: center;
         }
 
-        .historico-data {
-            color: var(--text-secondary);
-            margin-right: 1rem;
-        }
-
-        .historico-info {
-            flex: 1;
-        }
-
-        .historico-usuario {
-            color: var(--accent-color);
-            font-weight: 600;
-        }
-
-        @media print {
-            body {
-                background: white;
-            }
-            .container {
-                box-shadow: none;
-                margin: 0;
-                padding: 1rem;
-            }
-            .status-badge {
-                border: 1px solid var(--gray-medium);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                margin: 0;
-                border-radius: 0;
-            }
-            .header {
-                flex-direction: column;
-                text-align: center;
-            }
-            .header-right {
-                margin-top: 1rem;
-                text-align: center;
-            }
-            .info-grid {
-                grid-template-columns: 1fr;
-            }
+        .footer img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="header-left">
-                <h1>Orçamento #<%= orcamento.codigo_orcamento %></h1>
-                <div>Empresa: <%= orcamento.codigo_empresa %> | Loja: <%= orcamento.codigo_loja %></div>
+    <div class="page">
+        <div class="invoice-container">
+            <div class="invoice-header">
+                <div>
+                    <% if (logo) { %>
+                        <img src="<%= logo %>" alt="Logo">
+                    <% } %>
+                </div>
+
+                <div class="company-info">
+                    <h1>Orçamento de Venda</h1>
+                </div>
+                <div>
+                    <strong>Código do Orçamento:</strong> <%= orcamento.codigo_orcamento %><br>
+                    <strong>Data de Emissão:</strong> <%= new Date(orcamento.data_emissao).toLocaleDateString('pt-BR') %>
+                </div>
             </div>
+
+            <div class="invoice-details">
+                <div class="client-info">
+                    <h3>Informações do Cliente</h3>
+                    <% if (orcamento.cliente) { %>
+                        <p><strong>Nome:</strong> <%= orcamento.cliente.nome %></p>
+                        <p><strong>CPF:</strong> <%= orcamento.cliente.cpf %></p>
+                    <% } else if (orcamento.cliente_sem_cadastro && orcamento.cliente_sem_cadastro.nome) { %>
+                        <p><strong>Nome:</strong> <%= orcamento.cliente_sem_cadastro.nome %></p>
+                    <% } %>
+                </div>
+                <div class="budget-info">
+                    <h3>Detalhes do Orçamento</h3>
+                    <p><strong>Vendedor:</strong> <%= orcamento.vendedor %></p>
+                    <p><strong>Status:</strong> 
+                        <span class="status-<%= orcamento.status %>">
+                            <%= orcamento.status === 'valido' ? 'Válido' : 'Cancelado' %>
+                        </span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="payment-info">
+                <h3>Itens</h3>
+                <table class="invoice-items">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Qtd</th>
+                            <th>Preço Unit.</th>
+                            <th>Desconto</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% orcamento.itens.forEach(item => { %>
+                            <tr>
+                                <td><%= item.codigo_produto %></td>
+                                <td><%= item.descricao %></td>
+                                <td><%= item.quantidade %></td>
+                                <td>R$ <%= item.preco_unitario.toFixed(2) %></td>
+                                <td><%= item.desconto_percentual %>% (R$ <%= item.desconto_valor.toFixed(2) %>)</td>
+                                <td>R$ <%= item.total_unitario.toFixed(2) %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="invoice-summary">
+                <p><strong>Subtotal:</strong> R$ <%= orcamento.valores.subtotal %></p>
+                <p><strong>Desconto Total:</strong> <%= orcamento.valores.desconto_percentual_total %>% (R$ <%= orcamento.valores.desconto_valor__total %>)</p>
+                <p><strong>Total Final:</strong> R$ <%= orcamento.valores.total%></p>
+            </div>
+
+            <% if (orcamento.observacoes) { %>
+                <div class="payment-info">
+                    <h3>Observações</h3>
+                    <p><%= orcamento.observacoes %></p>
+                </div>
+            <% } %>
+
+            <% if (orcamento.historico && orcamento.historico.length > 0) { %>
+                <div class="payment-info">
+                    <h3>Histórico</h3>
+                    <% orcamento.historico.forEach(hist => { %>
+                        <p>
+                            <strong><%= new Date(hist.data).toLocaleString('pt-BR') %>:</strong>
+                            Status alterado de <strong><%= hist.status_anterior || 'inicial' %></strong> 
+                            para <strong><%= hist.status_novo %></strong>
+                            (Usuário: <%= hist.usuario %>)
+                        </p>
+                    <% }); %>
+                </div>
+            <% } %>
         </div>
 
-        <div class="info-section">
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">Cliente</div>
-                    <div class="info-value">
-                        <%= orcamento.cliente ? 'Cliente Cadastrado' : orcamento.cliente_sem_cadastro.nome %>
-                    </div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Vendedor</div>
-                    <div class="info-value">#<%= orcamento.vendedor %></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Data de Emissão</div>
-                    <div class="info-value">
-                        <%= new Date(orcamento.data_emissao).toLocaleDateString('pt-BR') %>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="section-title">Itens do Orçamento</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Descrição</th>
-                    <th>Qtd</th>
-                    <th>Preço Unit.</th>
-                    <th>Desconto</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                <% orcamento.itens.forEach(function(item) { %>
-                    <tr>
-                        <td><%= item.codigo_produto %></td>
-                        <td><%= item.descricao %></td>
-                        <td><%= item.quantidade %></td>
-                        <td>R$ <%= item.preco_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) %></td>
-                        <td>
-                            <% if (item.desconto_percentual > 0) { %>
-                                <%= item.desconto_percentual %>%
-                            <% } else if (item.desconto_valor > 0) { %>
-                                R$ <%= item.desconto_valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) %>
-                            <% } else { %>
-                                -
-                            <% } %>
-                        </td>
-                        <td>R$ <%= item.total_unitario.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) %></td>
-                    </tr>
-                <% }); %>
-            </tbody>
-        </table>
-
-        <div class="total-section">
-            <div class="total-grid">
-                <div class="info-item">
-                    <div class="info-label">Subtotal</div>
-                    <div class="info-value">
-                        R$ <%= orcamento.valores.subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) %>
-                    </div>
-                </div>
-                <% if (orcamento.valores.desconto_percentual_total > 0) { %>
-                    <div class="info-item">
-                        <div class="info-label">Desconto (%)</div>
-                        <div class="info-value"><%= orcamento.valores.desconto_percentual_total %>%</div>
-                    </div>
-                <% } %>
-                <% if (orcamento.valores.desconto_valor__total > 0) { %>
-                    <div class="info-item">
-                        <div class="info-label">Desconto (R$)</div>
-                        <div class="info-value">
-                            R$ <%= orcamento.valores.desconto_valor__total.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) %>
-                        </div>
-                    </div>
-                <% } %>
-            </div>
-            <div class="total-final">
-                Total: R$ <%= orcamento.valores.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) %>
-            </div>
-        </div>
-
-        <% if (orcamento.observacoes) { %>
-            <div class="section-title">Observações</div>
-            <div class="info-section">
-                <p><%= orcamento.observacoes %></p>
-            </div>
-        <% } %>
-
-        <div class="historico-section">
-            <div class="section-title">Histórico</div>
-            <% orcamento.historico.forEach(function(hist) { %>
-                <div class="historico-item">
-                    <div class="historico-data">
-                        <%= new Date(hist.data).toLocaleString('pt-BR') %>
-                    </div>
-                    <div class="historico-info">
-                        Status alterado de <strong><%= hist.status_anterior || 'inicial' %></strong> 
-                        para <strong><%= hist.status_novo %></strong>
-                        <span class="historico-usuario">(Usuário: <%= hist.usuario %>)</span>
-                    </div>
-                </div>
-            <% }); %>
+        <div class="footer">
+            <img src="<%= rodape %>" alt="Rodapé">
         </div>
     </div>
 </body>

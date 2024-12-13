@@ -4,6 +4,8 @@ const ejs = require('ejs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 const chromium = require('chrome-aws-lambda');
+const Loja = require('../models/lojas.model');
+
 
 
 exports.createOrcamento = async (req, res) => {
@@ -246,7 +248,7 @@ exports.updateOrcamento = async (req, res) => {
       const total = subtotal - desconto_total;
 
       orcamento.itens = itensCalculados;
-      
+
     }
 
     // Atualiza os outros campos recebidos
@@ -348,6 +350,8 @@ exports.cancelarOrcamento = async (req, res) => {
       });
     }
 
+
+
     orcamento.status = 'cancelado';
     orcamento.historico.push({
       status_anterior: 'aberto',
@@ -378,6 +382,18 @@ exports.generateOrcamentoPDF = async (req, res) => {
         error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
       });
     }
+    
+    const loja = await Loja.findOne({
+      codigo_loja,
+      'empresas.codigo_empresa': codigo_empresa
+    });
+
+    if (!loja) {
+      console.error('Loja não encontrada');
+      return res.status(404).json({
+        error: 'Loja não encontrada.',
+      });
+    }
 
     const orcamento = await Orcamento.findOne({
       _id: req.params.id,
@@ -392,9 +408,13 @@ exports.generateOrcamentoPDF = async (req, res) => {
       });
     }
 
+    const empresa = loja.empresas.find(emp => emp.codigo_empresa === parseInt(codigo_empresa));
+    const logo = empresa ? empresa.logo : null;
+    const rodape = empresa ? empresa.rodape : null;
+
     console.log('Orçamento encontrado:', orcamento);
     const templatePath = path.join(__dirname, '../views/orcamento.ejs');
-    const html = await ejs.renderFile(templatePath, { orcamento });
+    const html = await ejs.renderFile(templatePath, { orcamento, logo, rodape });
     console.log('HTML gerado com sucesso');
 
     const browser = await puppeteer.launch({

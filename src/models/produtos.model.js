@@ -34,17 +34,14 @@ const estoqueShemas = new mongoose.Schema({
   estoque: {
     type: Number,
     default: 0,
-    min: 0,
   },
   estoque_deposito: {
     type: Number,
     default: 0,
-    min: 0,
   },
   estoque_usado: {
     type: Number,
     default: 0,
-    min: 0,
   },
   unidade: {
     type: String,
@@ -53,9 +50,17 @@ const estoqueShemas = new mongoose.Schema({
   },
   minimo_estoque: {
     type: Number,
-    default: 0,
   }
 
+})
+
+const configuracoesShemas = new mongoose.Schema({
+  controla_estoque: {
+    type: String,
+    default: 'SIM',
+    enum: ['SIM', 'NAO', 'PERMITE_NEGATIVO'],
+
+  },
 })
 
 const encargosShemas = new mongoose.Schema({
@@ -134,6 +139,7 @@ const produtoSchema = new mongoose.Schema({
   precos: [precosShemas],
   estoque: [estoqueShemas],
   encargos: [encargosShemas],
+  configuracoes: [configuracoesShemas],
 
 });
 

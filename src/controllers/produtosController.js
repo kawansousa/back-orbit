@@ -148,9 +148,11 @@ exports.createProduto = async (req, res) => {
       referencia,
       localizacao,
       vencimento,
+      volume,
       precos,
       estoque,
       encargos,
+      configuracoes
     } = req.body;
 
 
@@ -200,12 +202,14 @@ exports.createProduto = async (req, res) => {
       status,
       grupo,
       subgrupo,
+      volume,
       referencia,
       vencimento,
       localizacao,
       precos,
       estoque,
       encargos,
+      configuracoes
     });
 
     await newProduto.save();

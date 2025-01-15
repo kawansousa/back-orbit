@@ -121,7 +121,6 @@ exports.criarVenda = async (req, res) => {
       ...recebimentos.map(receb => receb.save({ session }))
     ]);
 
-    // Deduct stock for each item in the sale
     for (const item of itens) {
       const produto = await Produto.findOne({
         codigo_loja,
@@ -129,11 +128,28 @@ exports.criarVenda = async (req, res) => {
         codigo_produto: item.codigo_produto
       }).session(session);
 
-      if (produto) {
-        produto.estoque[0].estoque -= item.quantidade;
-        await produto.save({ session });
+      if (!produto) {
+        throw new Error(`Produto não encontrado: ${item.codigo_produto}`);
       }
+
+      const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || 'SIM'; // Assume 'SIM' como padrão
+
+      if (configuracaoEstoque === 'SIM') {
+        if (produto.estoque[0].estoque < item.quantidade) {
+          throw new Error(`Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`);
+        }
+        produto.estoque[0].estoque -= item.quantidade;
+      } else if (configuracaoEstoque === 'PERMITE_NEGATIVO') {
+        produto.estoque[0].estoque -= item.quantidade;
+      } else if (configuracaoEstoque === 'NAO') {
+        // Se 'NAO', o estoque não é alterado
+        continue;
+      }
+
+      // Salvar o produto com o novo estoque
+      await produto.save({ session });
     }
+
 
     // Commit the transaction
     await session.commitTransaction();

@@ -432,11 +432,14 @@ exports.alterarVenda = async (req, res) => {
         const novaParcela = new Receber({
           codigo_loja,
           codigo_empresa,
+          cliente,
+          codigo_receber: parcela.codigo_receber,
           documento_origem: String(codigo_venda),
           origem: "venda",
-          vencimento: parcela.vencimento,
-          valor: parcela.valor,
+          valor_restante: parcela.valor_total,
+          valor_total: parcela.valor_total,
           status: "aberto",
+          data_vencimento: parcela.data_vencimento
         });
         await novaParcela.save({ session });
       }

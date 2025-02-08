@@ -1,0 +1,209 @@
+doctype html
+html(lang="pt-BR")
+  head
+    meta(charset="UTF-8")
+    title Comprovante de Venda
+    style.
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Arial', sans-serif;
+        line-height: 1.6;
+        background-color: #f4f4f4;
+        display: flex;
+        flex-direction: column;
+        font-size: 10px;
+      }
+      .page {
+        background-color: white;
+        width: 210mm; /* A4 width */
+        min-height: 297mm; /* A4 height */
+        margin: 0 auto;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+      }
+      .invoice-container {
+        flex-grow: 1;
+      }
+      .invoice-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 3px solid #000000;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+      }
+      .invoice-header img {
+        max-height: 80px;
+        max-width: 150px;
+      }
+      .company-info h1 {
+        color: #000000;
+        font-size: 24px;
+        margin-bottom: 5px;
+      }
+      .invoice-details {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+      .client-info, .sale-info {
+        width: 45%;
+      }
+      .invoice-items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      .invoice-items th, .invoice-items td {
+        border: 1px solid #ddd;
+        padding: 6px;
+        text-align: left;
+      }
+      .invoice-items th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+      }
+      .invoice-summary {
+        text-align: right;
+        margin-top: 20px;
+        border-top: 1px solid #ddd;
+      }
+      .payment-info {
+        margin-top: 15px;
+        padding-top: 10px;
+        border-top: 1px solid #ddd;
+      }
+      .parcelas {
+        width: 30%;
+        font-size: 9px;
+        border-collapse: collapse;
+      }
+      .parcelas th, .parcelas td {
+        border: 1px solid #ddd;
+        padding: 6px;
+        text-align: left;
+      }
+      .status-pago { color: green; }
+      .status-cancelado { color: red; }
+      .footer {
+        position: fixed;
+        bottom: 0px;
+        width: 100%;
+        text-align: center;
+      }
+      .footer img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+  body
+    .page
+      .invoice-container
+        .invoice-header
+          div
+            if logo
+              img(src=logo, alt="Logo")
+          .company-info
+            h1 Comprovante de Venda
+          div
+            strong Código da Venda: #{venda.codigo_venda}
+            br
+            strong Data de Emissão: #{new Date(venda.data_emissao).toLocaleDateString('pt-BR')}
+
+        .invoice-details
+          .client-info
+            h3 Informações do Cliente
+            if venda.cliente
+              p
+                strong Nome: #{venda.cliente.nome}
+              p
+                strong CPF: #{venda.cliente.cpf}
+            else if venda.cliente_sem_cadastro && venda.cliente_sem_cadastro.nome
+              p
+                strong Nome: #{venda.cliente_sem_cadastro.nome}
+
+          .sale-info
+            h3 Detalhes da Venda
+            p
+              strong Tipo de Venda: #{venda.tipo === 'avista' ? 'À Vista' : 'A Prazo'}
+            p
+              strong Status:
+              span(class="status-#{venda.status}") #{venda.status === 'pago' ? 'Pago' : 'Cancelado'}
+
+        .payment-info
+          h3 Itens
+          table.invoice-items
+            thead
+              tr
+                th Código
+                th Descrição
+                th Qtd
+                th Preço Unit.
+                th Desconto
+                th Total
+            tbody
+              each item in venda.itens
+                tr
+                  td= item.codigo_produto
+                  td= item.descricao
+                  td= item.quantidade
+                  td R$ #{item.preco_unitario.toFixed(2)}
+                  td R$ #{item.total_unitario.toFixed(2)}
+
+        .invoice-summary
+          p
+            strong Subtotal: R$ #{venda.valores.subtotal.toFixed(2)}
+          p
+            strong Desconto Total: #{venda.valores.desconto_percentual_total}% (R$ #{venda.valores.desconto_valor_total.toFixed(2)})
+          p
+            strong Total Final: R$ #{venda.valores.total.toFixed(2)}
+
+        .payment-info
+          h3 Formas de Pagamento
+          each pagamento in venda.forma_pagamento
+            p
+              strong Meio:
+              if pagamento.meio_pagamento == 'dinheiro'
+                | Dinheiro
+              else if pagamento.meio_pagamento == 'cartao_credito'
+                | Cartão de Crédito
+              else if pagamento.meio_pagamento == 'cartao_debito'
+                | Cartão de Débito
+              else if pagamento.meio_pagamento == 'pix'
+                | PIX
+              else if pagamento.meio_pagamento == 'boleto'
+                | Boleto
+              else if pagamento.meio_pagamento == 'transferencia'
+                | Transferência
+              else if pagamento.meio_pagamento == 'aprazo'
+                | A Prazo
+              |  -
+              strong Valor: R$ #{pagamento.valor_pagamento.toFixed(2)}
+
+        if venda.parcelas && venda.parcelas.length > 0
+          .payment-info
+            h3 Parcelas
+            table.parcelas
+              thead
+                tr
+                  th Valor
+                  th Data de Vencimento
+              tbody
+                each parcela in venda.parcelas
+                  tr
+                    td R$ #{parcela.valor_total.toFixed(2)}
+                    td #{new Date(parcela.data_vencimento).toLocaleDateString('pt-BR')}
+
+        if venda.observacoes
+          .payment-info
+            h3 Observações
+            p= venda.observacoes
+
+      .footer
+        img(src=rodape, alt="Rodapé")

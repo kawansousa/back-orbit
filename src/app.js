@@ -26,7 +26,7 @@ app.use(router);
 
 app.use('/usuario', userRoutes);
 app.use('/lojas', auth, lojasRoutes);
-app.use('/produtos', auth, produtosRoutes);
+app.use('/produtos', produtosRoutes);
 app.use('/clientes', auth, clientesRoutes);
 app.use('/fornecedores', auth, fornecedoresRoutes);
 app.use('/cidades', auth, cidadesRoutes);

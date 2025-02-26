@@ -12,5 +12,6 @@ router.get('/produtos/:id', ProdutosController.getProdutosById);
 router.put('/produtos/:id', ProdutosController.updateProduto);
 router.post('/produtosImportacao', ProdutosController.importProdutosFromExcel);
 router.post('/clientesImportacao', ProdutosController.importClientesFromExcel);
+router.get('/sicronizacao', ProdutosController.syncProdutos);
 
 module.exports = router;

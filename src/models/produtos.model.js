@@ -28,7 +28,7 @@ const precosShemas = new mongoose.Schema({
     ultimo_preco_venda: { type: Number, default: 0 },
     ultimo_preco_atacada: { type: Number, default: 0 },
   },
-})
+});
 
 const estoqueShemas = new mongoose.Schema({
   estoque: {
@@ -51,45 +51,42 @@ const estoqueShemas = new mongoose.Schema({
   minimo_estoque: {
     type: Number,
   }
-
-})
+});
 
 const configuracoesShemas = new mongoose.Schema({
   controla_estoque: {
     type: String,
     default: 'SIM',
     enum: ['SIM', 'NAO', 'PERMITE_NEGATIVO'],
-
   },
-})
+});
 
 const encargosShemas = new mongoose.Schema({
   ncm: {
     type: Number,
-    default: '0'
+    default: 0
   },
   cest: {
     type: Number,
-    default: '0'
+    default: 0
   },
   icms: {
     type: Number,
-    default: '0'
+    default: 0
   },
   ipi: {
     type: Number,
-    default: '0'
+    default: 0
   },
   pis: {
     type: Number,
-    default: '0'
+    default: 0
   },
   cofins: {
     type: Number,
-    default: '0'
+    default: 0
   },
-})
-
+});
 
 const produtoSchema = new mongoose.Schema({
   codigo_loja: {
@@ -140,7 +137,8 @@ const produtoSchema = new mongoose.Schema({
   estoque: [estoqueShemas],
   encargos: [encargosShemas],
   configuracoes: [configuracoesShemas],
-
+}, {
+  timestamps: true // Adiciona createdAt e updatedAt automaticamente
 });
 
 const Produto = mongoose.model('Produto', produtoSchema);

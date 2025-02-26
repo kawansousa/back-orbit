@@ -392,7 +392,7 @@ exports.importClientesFromExcel = async (req, res) => {
         nome: linha[3] || '',
         apelido: linha[4] || '',
         cnpj: parseInt(linha[16]) || 'nao informado',
-        ie: parseInt(linha[17])  || 'nao informado',
+        ie: parseInt(linha[17]) || 'nao informado',
         fone: linha[13],
         fone_secundario: linha[14],
         email: linha[32],
@@ -426,3 +426,25 @@ exports.importClientesFromExcel = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.syncProdutos = async (req, res) => {
+  try {
+    const { lastSyncTime } = req.query;
+    const syncTime = new Date(lastSyncTime);
+
+    // Log para verificar a data recebida
+    console.log('Data de sincronização recebida:', syncTime);
+
+    // Encontre produtos alterados ou adicionados desde a última sincronização
+    const produtos = await Produto.find({
+      updatedAt: { $gte: syncTime }
+    });
+
+    // Log para verificar quantos produtos foram encontrados
+    console.log('Produtos encontrados:', produtos.length);
+
+    res.status(200).json(produtos);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}

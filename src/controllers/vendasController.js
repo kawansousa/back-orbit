@@ -29,7 +29,8 @@ exports.criarVenda = async (req, res) => {
       valores,
       historico,
       parcelas,
-      codigo_movimento
+      codigo_movimento,
+      origem
     } = req.body;
 
     // Validate required fields
@@ -53,6 +54,7 @@ exports.criarVenda = async (req, res) => {
       valores,
       historico,
       parcelas,
+      origem
     });
 
     // Handle cash register and payments
@@ -312,6 +314,7 @@ exports.alterarVenda = async (req, res) => {
       parcelas,
       codigo_movimento,
       cliente_sem_cadastro,
+      origem,
     } = req.body;
 
     // Buscar a venda original
@@ -402,6 +405,7 @@ exports.alterarVenda = async (req, res) => {
     venda.valores = valores;
     venda.historico = historico;
     venda.parcelas = parcelas;
+    venda.origem = origem;
 
     await venda.save({ session });
 

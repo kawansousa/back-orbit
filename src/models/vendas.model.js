@@ -92,6 +92,10 @@ const vendaSchema = new mongoose.Schema({
     type: String,
     enum: ['avista', 'aprazo'],
   },
+  origem: {
+    type: String,
+    enum: ['web', 'pdv_offline-1'],
+  },
   cliente: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Cliente',

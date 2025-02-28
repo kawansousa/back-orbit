@@ -429,7 +429,9 @@ exports.importClientesFromExcel = async (req, res) => {
 
 exports.syncProdutos = async (req, res) => {
   try {
-    const { lastSyncTime } = req.query;
+    const { lastSyncTime, codigo_loja, codigo_empresa, } = req.query;
+
+    console.log(lastSyncTime)
     const syncTime = new Date(lastSyncTime);
 
     // Log para verificar a data recebida
@@ -437,7 +439,9 @@ exports.syncProdutos = async (req, res) => {
 
     // Encontre produtos alterados ou adicionados desde a última sincronização
     const produtos = await Produto.find({
-      updatedAt: { $gte: syncTime }
+      updatedAt: { $gte: syncTime },
+      codigo_loja,
+      codigo_empresa,
     });
 
     // Log para verificar quantos produtos foram encontrados

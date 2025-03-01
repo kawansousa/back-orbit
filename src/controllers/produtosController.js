@@ -284,7 +284,7 @@ exports.updateProduto = async (req, res) => {
 };
 
 /* importação */
-exports.importProdutosFromExcel = async (req, res) => {
+/* exports.importProdutosFromExcel = async (req, res) => {
   try {
     const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Produtos.xls');
 
@@ -355,7 +355,7 @@ exports.importProdutosFromExcel = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
+ */
 exports.importClientesFromExcel = async (req, res) => {
   try {
     const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Clientes.xls');
@@ -452,3 +452,80 @@ exports.syncProdutos = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 }
+
+
+
+exports.importProdutosFromExcel = async (req, res) => {
+  try {
+    // Caminhos para os arquivos JSON
+    const itesFilePath = path.join(__dirname, '..', 'uploads', 'itens_casadecarne.json');
+    const precosFilePath = path.join(__dirname, '..', 'uploads', 'itens_casadecarne_precos.json');
+    const estoqueFilePath = path.join(__dirname, '..', 'uploads', 'itens_casadecarne_estoque.json');
+
+    // Verifica se os arquivos existem
+    if (!fs.existsSync(itesFilePath) || !fs.existsSync(precosFilePath) || !fs.existsSync(estoqueFilePath)) {
+      return res.status(404).json({ error: 'Um ou mais arquivos JSON não foram encontrados.' });
+    }
+
+    // Lê os arquivos JSON
+    const itesData = JSON.parse(fs.readFileSync(itesFilePath, 'utf8'));
+    const precosData = JSON.parse(fs.readFileSync(precosFilePath, 'utf8'));
+    const estoqueData = JSON.parse(fs.readFileSync(estoqueFilePath, 'utf8'));
+
+    // Combina os dados em um novo formato
+    const itensLoja = itesData.map(item => {
+      const precos = precosData.find(p => p.ITEM === item.CODIGO);
+      const estoque = estoqueData.find(e => e.ITEM === item.CODIGO);
+
+      return {
+        codigo_loja: '4',
+        codigo_empresa: '1',
+        codigo_produto: item.CODIGO,
+        codigo_barras: item.COD_BARRA,
+        referencia: item.REFERENCIA || '',
+        descricao: item.DESCRICAO,
+        precos: [
+          {
+            preco_compra: parseFloat(precos.PRE_COMPRA.replace('R$ ', '').replace(',', '.')),
+            cma: parseFloat(precos.PRE_CMA?.replace('R$ ', '').replace(',', '.') || '0'),
+            preco_venda: parseFloat(precos.PRE_VENDA.replace('R$ ', '').replace(',', '.')),
+            preco_atacado: parseFloat(precos.PRE_ATACADO.replace('R$ ', '').replace(',', '.')),
+            ultimos_precos: {
+              ultimo_preco_compra: 0,
+              ultimo_cma: 0,
+              ultimo_preco_venda: 0,
+              ultimo_preco_atacada: 0,
+            },
+          },
+        ],
+        estoque: [
+          {
+            estoque: parseFloat(estoque.ESTOQUE_ATUAL.replace('.', '')),
+            estoque_deposito: 0,
+            estoque_usado: parseFloat(estoque.ESTOQUE_USADO.replace('.', '') || '0'),
+            unidade: 'UN',
+            minimo_estoque: parseFloat(estoque.ESTOQUE_MIN.replace('.', '') || '0'),
+          },
+        ],
+        encargos: [
+          {
+            ncm: parseInt(item.NCM || '0'),
+            cest: item.CEST || 0,
+            icms: 0,
+            ipi: 0,
+            pis: 0,
+            cofins: 0,
+          },
+        ],
+      };
+    });
+
+    // Salva os dados em um novo arquivo JSON
+    const itensLojaFilePath = path.join(__dirname, '..', 'uploads', 'itens_loja.json');
+    fs.writeFileSync(itensLojaFilePath, JSON.stringify(itensLoja, null, 2), 'utf8');
+
+    res.status(200).json({ message: 'Itens gerados e salvos em itens_loja.json com sucesso!' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

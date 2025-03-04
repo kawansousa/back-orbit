@@ -65,8 +65,6 @@ const authUser = async (req, res, next) => {
       return false;
     };
 
-    // Remove a verificação automática para admin
-    // Agora mesmo admin precisa ter as permissões explicitamente
 
     // Verifica a permissão específica
     const hasPermission = checkPermission(user.permissions, permissao);

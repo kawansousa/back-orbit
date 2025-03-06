@@ -2,7 +2,7 @@ const Caixa = require('../models/caixa.model');
 
 async function autoIncrementCaixas(req, res, next) {
   try {
-    const { codigo_empresa, codigo_loja } = req.body;
+    const { codigo_empresa, codigo_loja ,caixa} = req.body;
 
     // Validar se os códigos de loja e empresa estão presentes
     if (!codigo_empresa || !codigo_loja) {
@@ -10,7 +10,7 @@ async function autoIncrementCaixas(req, res, next) {
     }
 
     // Buscar o último código do Caixa para a combinação de loja e empresa
-    const lastCaixa = await Caixa.findOne({ codigo_loja, codigo_empresa })
+    const lastCaixa = await Caixa.findOne({ codigo_loja, codigo_empresa, caixa })
       .sort({ codigo_caixa: -1 });
 
     // Definir o próximo código de Caixa

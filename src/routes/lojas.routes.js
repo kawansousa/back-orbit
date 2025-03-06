@@ -5,5 +5,6 @@ const lojasController = require('../controllers/lojasController');
 router.post('/lojas', lojasController.createLoja);
 router.get('/lojas', lojasController.getLojas);
 router.post('/lojas/:lojaId/empresas', lojasController.addEmpresaToLoja);
+router.get('/empresas', lojasController.getEmpresaByLoja);
 
 module.exports = router;

@@ -21,6 +21,10 @@ const ContasBancariasSchema = new mongoose.Schema({
     enum: ['ativo', 'inativo'],
     default: 'ativo'
   },
+  conta_padrao: {
+    type: Boolean,
+    default: false
+  },
   agencia: {
     type: String,
     required: true
@@ -33,4 +37,4 @@ const ContasBancariasSchema = new mongoose.Schema({
 
 const ContasBancarias = mongoose.model('ContasBancarias', ContasBancariasSchema);
 
-module.exports =  ContasBancarias ;
+module.exports = ContasBancarias;

@@ -65,6 +65,31 @@ exports.getLojas = async (req, res) => {
   }
 };
 
+exports.getEmpresaByLoja = async (req, res) => {
+  const { codigo_loja, empresaId } = req.query; // Alterado para req.query
+
+  // Garantir que codigo_loja seja um número válido
+  const codigoLojaNum = parseInt(codigo_loja, 10);
+  if (isNaN(codigoLojaNum)) {
+      return res.status(400).json({ message: 'Código da loja inválido' });
+  }
+
+  try {
+      // Buscar a loja pelo codigo_loja
+      const loja = await Loja.findOne({ codigo_loja: codigoLojaNum });
+      if (!loja) return res.status(404).json({ message: 'Loja não encontrada' });
+
+      // Buscar a empresa dentro da loja pelo ID
+      const empresa = loja.empresas.find(emp => emp._id.toString() === empresaId);
+      if (!empresa) return res.status(404).json({ message: 'Empresa não encontrada nesta loja' });
+
+      res.status(200).json(empresa);
+  } catch (error) {
+      res.status(500).json({ error: error.message });
+  }
+};
+
+
 // Adicionar uma nova empresa a uma loja existente
 exports.addEmpresaToLoja = async (req, res) => {
   const { lojaId } = req.params;

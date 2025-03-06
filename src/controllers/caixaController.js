@@ -1,5 +1,5 @@
 const Caixa = require('../models/caixa.model');
-const Movimentacao = require('../models/movimentacoes.model');
+const Movimentacao = require('../models/movimentacoes_caixa.model');
 
 exports.abrirCaixa = async (req, res) => {
   try {
@@ -16,6 +16,7 @@ exports.abrirCaixa = async (req, res) => {
     const caixaAberto = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
+      caixa,
       status: 'aberto'
     });
 
@@ -27,9 +28,11 @@ exports.abrirCaixa = async (req, res) => {
     const ultimoCaixa = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
+      caixa,
       status: 'fechado'
-    }).sort({ codigo_caixa: -1 });
+    }).sort({ codigo_caixa: -1});
 
+    console.log(ultimoCaixa)
 
     const saldoInicialReal = ultimoCaixa ? ultimoCaixa.saldo_final : saldo_inicial;
 
@@ -38,8 +41,8 @@ exports.abrirCaixa = async (req, res) => {
       codigo_empresa,
       codigo_caixa,
       responsavel_abertura,
-      saldo_inicial: saldoInicialReal,
-      saldo_final: saldoInicialReal, // Inicializa saldo final igual ao inicial
+      saldo_inicial: saldoInicialReal || '0',
+      saldo_final: saldoInicialReal || '0', // Inicializa saldo final igual ao inicial
       status: 'aberto',
       caixa
     });
@@ -50,6 +53,8 @@ exports.abrirCaixa = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
 // Registrar Movimentação
 exports.registrarMovimentacao = async (req, res) => {
   try {
@@ -109,6 +114,7 @@ exports.registrarMovimentacao = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 // Detalhes do Caixa com Movimentações
 exports.detalhesCaixa = async (req, res) => {
   try {
@@ -191,42 +197,37 @@ exports.fecharCaixa = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
 // Listar Caixas
 exports.listarCaixas = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;
 
+    // Filter only open cash registers
+    const searchQuery = {
+      codigo_loja,
+      codigo_empresa,
+    };
 
-    const { page = 1, limit = 20, searchTerm = '' } = req.query;
-
-    const skip = (page - 1) * limit;
-
-    // Build search query
-    const searchQuery = searchTerm
-      ? {
-        codigo_loja,
-        codigo_empresa,
-        $or: [
-          { responsavel_abertura: { $regex: searchTerm, $options: 'i' } },
-          { codigo_caixa: { $regex: searchTerm, $options: 'i' } }
-        ]
-      }
-      : { codigo_loja ,codigo_empresa};
-
-    // Find caixas with pagination
+    // Find open cash registers and sort by codigo_caixa in descending order
     const caixas = await Caixa.find(searchQuery)
-      .sort({ codigo_caixa: -1 }) // Ordena pelo maior código de caixa primeiro
-      .skip(skip)
-      .limit(Number(limit));
+      .sort({ codigo_caixa: -1 }); // Sort by codigo_caixa descending
 
-    // Count total documents
-    const total = await Caixa.countDocuments(searchQuery);
+    // Group by 'caixa' and get the first item of each group (last open cash register)
+    const ultimosCaixasAbertos = {};
+    caixas.forEach(caixa => {
+      if (!ultimosCaixasAbertos[caixa.caixa]) {
+        ultimosCaixasAbertos[caixa.caixa] = caixa;
+      }
+    });
+
+    // Convert the grouped object to an array
+    const result = Object.values(ultimosCaixasAbertos);
 
     res.status(200).json({
-      data: caixas,
-      total,
-      page: Number(page),
-      totalPages: Math.ceil(total / limit)
+      data: result,
+      total: result.length
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

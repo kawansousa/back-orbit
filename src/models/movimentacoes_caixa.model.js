@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 // Model de Movimentação
-const MovimentacaoSchema = new mongoose.Schema({
+const MovimentacaoCaixaSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
     required: true
@@ -70,6 +70,6 @@ const MovimentacaoSchema = new mongoose.Schema({
   },
 });
 
-const Movimentacao = mongoose.model('Movimentacao', MovimentacaoSchema);
+const MovimentacaoCaixa = mongoose.model('MovimentacaoCaixa', MovimentacaoCaixaSchema);
 
-module.exports = Movimentacao;
+module.exports = MovimentacaoCaixa;

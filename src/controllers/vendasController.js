@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Venda = require('../models/vendas.model');
 const Receber = require('../models/receber.model');
-const Movimentacao = require('../models/movimentacoes.model');
+const Movimentacao = require('../models/movimentacoes_caixa.model');
 const Caixa = require('../models/caixa.model');
 const Produto = require('../models/produtos.model'); // Import the Produto model
 const path = require('path');

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Receber = require('../models/receber.model');
 const Caixa = require('../models/caixa.model');
-const Movimentacao = require('../models/movimentacoes.model');
+const Movimentacao = require('../models/movimentacoes_banco.model');
 
 
 exports.criarReceber = async (req, res) => {

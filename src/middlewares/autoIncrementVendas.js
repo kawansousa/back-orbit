@@ -2,7 +2,7 @@ const Venda = require('../models/vendas.model');
 
 async function autoIncrementVendass(req, res, next) {
   try {
-    const { codigo_empresa, codigo_loja } = req.body;
+    const { codigo_empresa, codigo_loja, origem } = req.body;
 
     // Validar se os códigos de loja e empresa estão presentes
     if (!codigo_empresa || !codigo_loja) {
@@ -10,7 +10,7 @@ async function autoIncrementVendass(req, res, next) {
     }
 
     // Buscar o último código do Vendas para a combinação de loja e empresa
-    const lastVendas= await Venda.findOne({ codigo_loja, codigo_empresa })
+    const lastVendas = await Venda.findOne({ codigo_loja, codigo_empresa, origem })
       .sort({ codigo_venda: -1 });
 
     // Definir o próximo código de Vendas

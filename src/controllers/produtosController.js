@@ -284,7 +284,7 @@ exports.updateProduto = async (req, res) => {
 };
 
 /* importação */
-/* exports.importProdutosFromExcel = async (req, res) => {
+exports.importProdutosFromExcel = async (req, res) => {
   try {
     const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Produtos.xls');
 
@@ -307,7 +307,7 @@ exports.updateProduto = async (req, res) => {
         codigo_loja: '3',
         codigo_empresa: '1',
         codigo_produto: parseInt(linha[3]),
-        codigo_barras: parseInt(linha[4]),
+        codigo_barras: linha[4],
         referencia: parseInt(linha[47]),
         descricao: linha[5],
         precos: [
@@ -355,7 +355,6 @@ exports.updateProduto = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
- */
 exports.importClientesFromExcel = async (req, res) => {
   try {
     const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Clientes.xls');
@@ -455,7 +454,7 @@ exports.syncProdutos = async (req, res) => {
 
 
 
-exports.importProdutosFromExcel = async (req, res) => {
+/* exports.importProdutosFromExcel = async (req, res) => {
   try {
     // Caminhos para os arquivos JSON
     const itesFilePath = path.join(__dirname, '..', 'uploads', 'itens_casadecarne.json');
@@ -528,4 +527,4 @@ exports.importProdutosFromExcel = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-};
+}; */

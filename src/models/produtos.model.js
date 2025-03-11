@@ -101,7 +101,7 @@ const produtoSchema = new mongoose.Schema({
     type: Number,
   },
   codigo_barras: {
-    type: Number,
+    type: String,
   },
   codigo_fabricante: {
     type: Number,

@@ -49,17 +49,19 @@ exports.getProdutos = async (req, res) => {
         filtros.$or = [
           { descricao: { $regex: searchTerm, $options: "i" } },
           { codigo_produto: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
-          { codigo_barras: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
+          { codigo_barras: String(searchTerm) }, // Trata codigo_barras como string
           { referencia: { $regex: searchTerm, $options: "i" } },
         ].filter((condition) => condition[Object.keys(condition)[0]] !== null);
       } else {
         // Busca específica por campo
         switch (searchType) {
           case "codigo_produto":
-          case "codigo_barras":
             if (!isNaN(searchTerm)) {
               filtros[searchType] = parseInt(searchTerm, 10);
             }
+            break;
+          case "codigo_barras":
+            filtros[searchType] = String(searchTerm); // Trata codigo_barras como string
             break;
           case "descricao":
           case "referencia":
@@ -107,7 +109,6 @@ exports.getProdutos = async (req, res) => {
       { $unset: ['grupoInfo'] }, // Remove o campo adicional para limpar o resultado
     ];
 
-
     // Consulta com agregação
     const produtos = await Produto.aggregate(pipeline);
 
@@ -133,6 +134,7 @@ exports.getProdutos = async (req, res) => {
   }
 };
 
+
 exports.createProduto = async (req, res) => {
   try {
     const {
@@ -155,6 +157,8 @@ exports.createProduto = async (req, res) => {
       configuracoes
     } = req.body;
 
+    // Converter codigo_barras para string, se necessário
+    const codigoBarrasString = String(codigo_barras);
 
     // Verificar se os campos obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
@@ -173,18 +177,18 @@ exports.createProduto = async (req, res) => {
       codigo_empresa,
       $or: [
         { descricao }, // Verifica a descrição
-        { codigo_barras }, // Verifica o código de barras
+        { codigo_barras: codigoBarrasString }, // Verifica o código de barras como string
       ],
     });
 
     if (produtoExistente) {
-      if (produtoExistente.descricao == descricao) {
+      if (produtoExistente.descricao === descricao) {
         return res.status(409).json({
           error: 'Já existe um item cadastrado com essa descrição.',
         });
       }
 
-      if (produtoExistente.codigo_barras == codigo_barras) {
+      if (produtoExistente.codigo_barras === codigoBarrasString) {
         return res.status(409).json({
           error: 'Já existe um item cadastrado com esse código de barras.',
         });
@@ -196,7 +200,7 @@ exports.createProduto = async (req, res) => {
       codigo_loja,
       codigo_empresa,
       codigo_produto, // Valor já atribuído pelo middleware
-      codigo_barras,
+      codigo_barras: codigoBarrasString,
       codigo_fabricante,
       descricao,
       status,
@@ -223,7 +227,6 @@ exports.createProduto = async (req, res) => {
   }
 };
 
-// Obter produto por ID
 exports.getProdutosById = async (req, res) => {
   try {
     // Verificar se os parâmetros obrigatórios estão presentes

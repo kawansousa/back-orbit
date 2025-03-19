@@ -54,7 +54,6 @@ exports.abrirCaixa = async (req, res) => {
   }
 };
 
-
 // Registrar Movimentação
 exports.registrarMovimentacao = async (req, res) => {
   try {

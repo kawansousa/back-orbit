@@ -16,6 +16,7 @@ exports.getProdutos = async (req, res) => {
       limit,
       searchTerm,
       searchType,
+      filterType,
     } = req.query;
 
     // Verifica se os parâmetros obrigatórios foram fornecidos
@@ -42,14 +43,15 @@ exports.getProdutos = async (req, res) => {
     let filtros = {
       codigo_loja,
       codigo_empresa,
+      status: "ativo",
     };
 
-    if (searchTerm) {
+    if (searchTerm && filterType) {
       if (searchType === "todos") {
         filtros.$or = [
           { descricao: { $regex: searchTerm, $options: "i" } },
           { codigo_produto: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
-          { codigo_barras: String(searchTerm) }, // Trata codigo_barras como string
+          { codigo_barras: String(searchTerm) },
           { referencia: { $regex: searchTerm, $options: "i" } },
         ].filter((condition) => condition[Object.keys(condition)[0]] !== null);
       } else {
@@ -61,15 +63,24 @@ exports.getProdutos = async (req, res) => {
             }
             break;
           case "codigo_barras":
-            filtros[searchType] = String(searchTerm); // Trata codigo_barras como string
+            filtros[searchType] = String(searchTerm);
             break;
           case "descricao":
           case "referencia":
             filtros[searchType] = { $regex: searchTerm, $options: "i" };
             break;
         }
+    
+        if (filterType === "ativo") {
+          filtros.status = "ativo";
+        } else if (filterType === "inativo") {
+          filtros.status = "inativo";
+        } else {
+          filtros.status = { $in: ["ativo", "inativo"] };
+        }
       }
     }
+    
 
     // Pipeline de agregação para trazer o nome do grupo
     const pipeline = [

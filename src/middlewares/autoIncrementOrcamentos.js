@@ -15,7 +15,7 @@ async function autoIncrementOrcamentos(req, res, next) {
 
     // Definir o próximo código de Orcamento
     const nextCodigoOrcamento = lastOrcamento ? lastOrcamento.codigo_orcamento + 1 : 1;
-
+    
     // Adicionar o código de Orcamento ao corpo da requisição
     req.body.codigo_orcamento = nextCodigoOrcamento;
 

@@ -35,10 +35,16 @@ exports.createEntrada = async (req, res) => {
 
     // Atualizar o estoque e os preços dos produtos
     for (const item of itens) {
-      const produto = await Produto.findOne({ codigo_produto: item.codigo_produto });
+      const produto = await Produto.findOne({
+        codigo_produto: item.codigo_produto,
+        codigo_loja,
+        codigo_empresa,
+      });
+
       if (produto) {
         // Atualizar o estoque
         produto.estoque[0].estoque += item.quantidade;
+        console.log(produto.estoque[0].estoque);
 
         // Atualizar os preços
         produto.precos = [

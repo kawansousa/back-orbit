@@ -42,9 +42,8 @@ exports.createEntrada = async (req, res) => {
       });
 
       if (produto) {
-        // Atualizar o estoque
-        produto.estoque[0].estoque += item.quantidade;
-        console.log(produto.estoque[0].estoque);
+        const estoqueEntarda = Number(item.quantidade)
+        produto.estoque[0].estoque += estoqueEntarda;
 
         // Atualizar os preços
         produto.precos = [

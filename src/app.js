@@ -36,7 +36,7 @@ app.use('/orcamentos', auth, orcamantosRoutes);
 app.use('/caixa', auth, caixaRoutes);
 app.use('/receber', auth, receberRoutes);
 app.use('/vendas', auth, vendasRoutes);
-app.use('/entradas',auth, entradasRoutes);
+app.use('/entradas', auth, entradasRoutes);
 app.use('/categoriaContabil', categoriaContabilRoutes);
 app.use('/contasBancarias', contasBancariasRoutes);
 

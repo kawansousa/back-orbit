@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 // Schema de Produto
 const precosShemas = new mongoose.Schema({
@@ -45,102 +45,105 @@ const estoqueShemas = new mongoose.Schema({
   },
   unidade: {
     type: String,
-    enum: ['UN', 'KG', 'L', 'CX', 'PCT', 'SC', 'TON'],
+    enum: ["UN", "KG", "L", "CX", "PCT", "SC", "TON"],
     required: true,
   },
   minimo_estoque: {
     type: Number,
-  }
+  },
 });
 
 const configuracoesShemas = new mongoose.Schema({
   controla_estoque: {
     type: String,
-    default: 'SIM',
-    enum: ['SIM', 'NAO', 'PERMITE_NEGATIVO'],
+    default: "SIM",
+    enum: ["SIM", "NAO", "PERMITE_NEGATIVO"],
   },
 });
 
 const encargosShemas = new mongoose.Schema({
   ncm: {
     type: Number,
-    default: 0
+    default: 0,
   },
   cest: {
     type: Number,
-    default: 0
+    default: 0,
   },
   icms: {
     type: Number,
-    default: 0
+    default: 0,
   },
   ipi: {
     type: Number,
-    default: 0
+    default: 0,
   },
   pis: {
     type: Number,
-    default: 0
+    default: 0,
   },
   cofins: {
     type: Number,
-    default: 0
+    default: 0,
   },
 });
 
-const produtoSchema = new mongoose.Schema({
-  codigo_loja: {
-    type: String,
-    required: true,
+const produtoSchema = new mongoose.Schema(
+  {
+    codigo_loja: {
+      type: String,
+      required: true,
+    },
+    codigo_empresa: {
+      type: String,
+      required: true,
+    },
+    codigo_produto: {
+      type: Number,
+    },
+    codigo_barras: {
+      type: String,
+    },
+    codigo_fabricante: {
+      type: Number,
+    },
+    descricao: {
+      type: String,
+      required: true,
+    },
+    status: {
+      type: String,
+      default: "ativo",
+    },
+    grupo: {
+      type: String,
+    },
+    subgrupo: {
+      type: String,
+    },
+    referencia: {
+      type: String,
+    },
+    localizacao: {
+      type: String,
+    },
+    volume: {
+      type: Number,
+      default: 0,
+    },
+    vencimento: {
+      type: Date,
+    },
+    precos: [precosShemas],
+    estoque: [estoqueShemas],
+    encargos: [encargosShemas],
+    configuracoes: [configuracoesShemas],
   },
-  codigo_empresa: {
-    type: String,
-    required: true,
-  },
-  codigo_produto: {
-    type: Number,
-  },
-  codigo_barras: {
-    type: String,
-  },
-  codigo_fabricante: {
-    type: Number,
-  },
-  descricao: {
-    type: String,
-    required: true,
-  },
-  status: {
-    type: String,
-    default: 'ativo'
-  },
-  grupo: {
-    type: String,
-  },
-  subgrupo: {
-    type: String,
-  },
-  referencia: {
-    type: String,
-  },
-  localizacao: {
-    type: String,
-  },
-  volume: {
-    type: Number,
-    default: 0
-  },
-  vencimento: {
-    type: Date,
-  },
-  precos: [precosShemas],
-  estoque: [estoqueShemas],
-  encargos: [encargosShemas],
-  configuracoes: [configuracoesShemas],
-}, {
-  timestamps: true // Adiciona createdAt e updatedAt automaticamente
-});
+  {
+    timestamps: true, // Adiciona createdAt e updatedAt automaticamente
+  }
+);
 
-const Produto = mongoose.model('Produto', produtoSchema);
+const Produto = mongoose.model("Produto", produtoSchema);
 
 module.exports = Produto;

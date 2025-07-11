@@ -1,28 +1,21 @@
 // controllers/produtos.controller.js
-const Produto = require('../models/produtos.model');
-const Grupos = require('../models/grupos.model');
-const XLSX = require('xlsx');
-const fs = require('fs');
-const path = require('path')
-const Cidade = require('../models/cidades.model');
-
+const Produto = require("../models/produtos.model");
+const Grupos = require("../models/grupos.model");
+const XLSX = require("xlsx");
+const fs = require("fs");
+const path = require("path");
+const Cidade = require("../models/cidades.model");
 
 exports.getProdutos = async (req, res) => {
   try {
-    const {
-      codigo_loja,
-      codigo_empresa,
-      page,
-      limit,
-      searchTerm,
-      searchType,
-    } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
+      req.query;
 
     // Verifica se os parâmetros obrigatórios foram fornecidos
     if (!codigo_loja || !codigo_empresa) {
-      return res
-        .status(400)
-        .json({ error: "Os campos codigo_loja e codigo_empresa são obrigatórios." });
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
     }
 
     // Converte os parâmetros de paginação para números
@@ -48,7 +41,9 @@ exports.getProdutos = async (req, res) => {
       if (searchType === "todos") {
         filtros.$or = [
           { descricao: { $regex: searchTerm, $options: "i" } },
-          { codigo_produto: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
+          {
+            codigo_produto: isNaN(searchTerm) ? null : parseInt(searchTerm, 10),
+          },
           { codigo_barras: String(searchTerm) }, // Trata codigo_barras como string
           { referencia: { $regex: searchTerm, $options: "i" } },
         ].filter((condition) => condition[Object.keys(condition)[0]] !== null);
@@ -80,8 +75,10 @@ exports.getProdutos = async (req, res) => {
         $addFields: {
           grupo: {
             $cond: {
-              if: { $and: [{ $ne: ['$grupo', ''] }, { $ne: ['$grupo', null] }] },
-              then: { $toInt: '$grupo' },
+              if: {
+                $and: [{ $ne: ["$grupo", ""] }, { $ne: ["$grupo", null] }],
+              },
+              then: { $toInt: "$grupo" },
               else: null,
             },
           },
@@ -89,24 +86,24 @@ exports.getProdutos = async (req, res) => {
       },
       {
         $lookup: {
-          from: 'grupos', // Nome da coleção no banco
-          localField: 'grupo', // Campo no documento atual (Produto)
-          foreignField: 'codigo_grupo', // Campo no documento relacionado (Grupos)
-          as: 'grupoInfo',
+          from: "grupos", // Nome da coleção no banco
+          localField: "grupo", // Campo no documento atual (Produto)
+          foreignField: "codigo_grupo", // Campo no documento relacionado (Grupos)
+          as: "grupoInfo",
         },
       },
       {
         $addFields: {
           grupo: {
             $cond: {
-              if: { $gt: [{ $size: '$grupoInfo' }, 0] },
-              then: { $arrayElemAt: ['$grupoInfo.descricao', 0] },
-              else: '',
+              if: { $gt: [{ $size: "$grupoInfo" }, 0] },
+              then: { $arrayElemAt: ["$grupoInfo.descricao", 0] },
+              else: "",
             },
           },
         },
       },
-      { $unset: ['grupoInfo'] }, // Remove o campo adicional para limpar o resultado
+      { $unset: ["grupoInfo"] }, // Remove o campo adicional para limpar o resultado
     ];
 
     // Consulta com agregação
@@ -116,9 +113,9 @@ exports.getProdutos = async (req, res) => {
     const totalProdutos = await Produto.countDocuments(filtros);
 
     if (produtos.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "Nenhum produto encontrado para os filtros fornecidos." });
+      return res.status(404).json({
+        message: "Nenhum produto encontrado para os filtros fornecidos.",
+      });
     }
 
     // Retorna os produtos junto com informações de paginação
@@ -133,7 +130,6 @@ exports.getProdutos = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 
 exports.createProduto = async (req, res) => {
   try {
@@ -154,7 +150,7 @@ exports.createProduto = async (req, res) => {
       precos,
       estoque,
       encargos,
-      configuracoes
+      configuracoes,
     } = req.body;
 
     // Converter codigo_barras para string, se necessário
@@ -163,12 +159,12 @@ exports.createProduto = async (req, res) => {
     // Verificar se os campos obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
     if (!descricao) {
-      return res.status(400).json({ error: 'A descricao é obrigatória.' });
+      return res.status(400).json({ error: "A descricao é obrigatória." });
     }
 
     // Verificar duplicidade (descrição ou código de barras)
@@ -184,13 +180,13 @@ exports.createProduto = async (req, res) => {
     if (produtoExistente) {
       if (produtoExistente.descricao === descricao) {
         return res.status(409).json({
-          error: 'Já existe um item cadastrado com essa descrição.',
+          error: "Já existe um item cadastrado com essa descrição.",
         });
       }
 
       if (produtoExistente.codigo_barras === codigoBarrasString) {
         return res.status(409).json({
-          error: 'Já existe um item cadastrado com esse código de barras.',
+          error: "Já existe um item cadastrado com esse código de barras.",
         });
       }
     }
@@ -213,13 +209,13 @@ exports.createProduto = async (req, res) => {
       precos,
       estoque,
       encargos,
-      configuracoes
+      configuracoes,
     });
 
     await newProduto.save();
 
     res.status(201).json({
-      message: 'Produto criado com sucesso',
+      message: "Produto criado com sucesso",
       produto: newProduto,
     });
   } catch (error) {
@@ -231,7 +227,9 @@ exports.getProdutosById = async (req, res) => {
   try {
     // Verificar se os parâmetros obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
-      return res.status(400).json({ error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' });
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
     }
 
     // Buscar o produto pelo ID e validar a loja e empresa
@@ -243,7 +241,9 @@ exports.getProdutosById = async (req, res) => {
 
     // Verificar se o produto foi encontrado
     if (!produto) {
-      return res.status(404).json({ error: 'Produto não encontrado para essa loja e empresa.' });
+      return res
+        .status(404)
+        .json({ error: "Produto não encontrado para essa loja e empresa." });
     }
 
     // Retornar o produto encontrado
@@ -259,12 +259,14 @@ exports.updateProduto = async (req, res) => {
   try {
     // Verificar se os parâmetros obrigatórios estão presentes
     if (!codigo_loja || !codigo_empresa) {
-      return res.status(400).json({ error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' });
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
     }
 
     // Verificar se a descrição é válida (não vazia, caso esteja no corpo da requisição)
-    if (descricao !== undefined && descricao.trim() === '') {
-      return res.status(400).json({ error: 'Preencha a descrição' });
+    if (descricao !== undefined && descricao.trim() === "") {
+      return res.status(400).json({ error: "Preencha a descrição" });
     }
 
     // Atualizar o produto com base no ID, validando também a loja e empresa
@@ -276,11 +278,15 @@ exports.updateProduto = async (req, res) => {
 
     // Verificar se o produto foi encontrado e atualizado
     if (!updatedProduto) {
-      return res.status(404).json({ error: 'Produto não encontrado para essa loja e empresa.' });
+      return res
+        .status(404)
+        .json({ error: "Produto não encontrado para essa loja e empresa." });
     }
 
     // Retornar o produto atualizado
-    res.status(200).json({ message: 'Produto atualizado', produto: updatedProduto });
+    res
+      .status(200)
+      .json({ message: "Produto atualizado", produto: updatedProduto });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -289,11 +295,11 @@ exports.updateProduto = async (req, res) => {
 /* importação */
 exports.importProdutosFromExcel = async (req, res) => {
   try {
-    const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Produtos.xls');
+    const filePath = path.join(__dirname, "..", "uploads", "tbl_Produtos.xls");
 
     // Verifica se o arquivo existe
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Arquivo Excel não encontrado.' });
+      return res.status(404).json({ error: "Arquivo Excel não encontrado." });
     }
 
     // Lê o arquivo Excel
@@ -305,10 +311,10 @@ exports.importProdutosFromExcel = async (req, res) => {
     // Remover a primeira linha (cabeçalho)
     jsonData.shift();
 
-    const produtos = jsonData.map(linha => {
+    const produtos = jsonData.map((linha) => {
       return {
-        codigo_loja: '3',
-        codigo_empresa: '1',
+        codigo_loja: "3",
+        codigo_empresa: "1",
         codigo_produto: parseInt(linha[3]),
         codigo_barras: linha[4],
         referencia: parseInt(linha[47]),
@@ -332,7 +338,7 @@ exports.importProdutosFromExcel = async (req, res) => {
             estoque: parseInt(linha[15]),
             estoque_deposito: 0,
             estoque_usado: 0,
-            unidade: 'UN',
+            unidade: "UN",
             minimo_estoque: 0,
           },
         ],
@@ -350,21 +356,23 @@ exports.importProdutosFromExcel = async (req, res) => {
     });
 
     // Salva os dados em um arquivo JSON
-    const jsonFilePath = path.join(__dirname, '..', 'uploads', 'ites.json');
-    fs.writeFileSync(jsonFilePath, JSON.stringify(produtos, null, 2), 'utf8');
+    const jsonFilePath = path.join(__dirname, "..", "uploads", "ites.json");
+    fs.writeFileSync(jsonFilePath, JSON.stringify(produtos, null, 2), "utf8");
 
-    res.status(200).json({ message: 'Produtos importados e salvos em ites.json com sucesso!' });
+    res.status(200).json({
+      message: "Produtos importados e salvos em ites.json com sucesso!",
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 exports.importClientesFromExcel = async (req, res) => {
   try {
-    const filePath = path.join(__dirname, '..', 'uploads', 'tbl_Clientes.xls');
+    const filePath = path.join(__dirname, "..", "uploads", "tbl_Clientes.xls");
 
     // Verifica se o arquivo existe
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Arquivo Excel não encontrado.' });
+      return res.status(404).json({ error: "Arquivo Excel não encontrado." });
     }
 
     // Lê o arquivo Excel
@@ -376,54 +384,58 @@ exports.importClientesFromExcel = async (req, res) => {
 
     const getCidadeCodigo = async (nomeCidade) => {
       const nomeCidadeMinusculo = nomeCidade.toLowerCase();
-      const cidade = await Cidade.findOne({ nome: { $regex: new RegExp(`^${nomeCidadeMinusculo}$`, 'i') } });
+      const cidade = await Cidade.findOne({
+        nome: { $regex: new RegExp(`^${nomeCidadeMinusculo}$`, "i") },
+      });
       return cidade ? cidade.codigo : null;
     };
 
+    const produtos = await Promise.all(
+      jsonData.map(async (linha) => {
+        const nomeCidade = linha[8]; // Ajuste conforme a posição correta
+        const codigoCidade = await getCidadeCodigo(nomeCidade);
 
-    const produtos = await Promise.all(jsonData.map(async (linha) => {
-      const nomeCidade = linha[8]; // Ajuste conforme a posição correta
-      const codigoCidade = await getCidadeCodigo(nomeCidade);
-
-      return {
-        codigo_loja: '3',
-        codigo_empresa: '1',
-        codigo_cliente: parseInt(linha[2]),
-        cpf: parseInt(linha[43]) || 'nao informado',
-        rg: parseInt(linha[44]) || 'nao informado',
-        nome: linha[3] || '',
-        apelido: linha[4] || '',
-        cnpj: parseInt(linha[16]) || 'nao informado',
-        ie: parseInt(linha[17]) || 'nao informado',
-        fone: linha[13],
-        fone_secundario: linha[14],
-        email: linha[32],
-        tipo: linha[1] === 1 ? 'FISICA' : 'JURIDICA',
-        endereco: {
-          endereco: linha[6],
-          numero: linha[10],
-          bairro: linha[7],
-          cidade: `${codigoCidade}`,
-          cep: linha[12]
-        },
-        conjugue: {
-          nome: '',
-          apelido: '',
-          cpf: '',
-          fone: '',
-          email: ''
-        },
-        status: 'ativo',
-        data_cadastro: linha[50]
-
-      }
-    }));
+        return {
+          codigo_loja: "3",
+          codigo_empresa: "1",
+          codigo_cliente: parseInt(linha[2]),
+          cpf: parseInt(linha[43]) || "nao informado",
+          rg: parseInt(linha[44]) || "nao informado",
+          nome: linha[3] || "",
+          apelido: linha[4] || "",
+          cnpj: parseInt(linha[16]) || "nao informado",
+          ie: parseInt(linha[17]) || "nao informado",
+          fone: linha[13],
+          fone_secundario: linha[14],
+          email: linha[32],
+          tipo: linha[1] === 1 ? "FISICA" : "JURIDICA",
+          endereco: {
+            endereco: linha[6],
+            numero: linha[10],
+            bairro: linha[7],
+            cidade: `${codigoCidade}`,
+            cep: linha[12],
+          },
+          conjugue: {
+            nome: "",
+            apelido: "",
+            cpf: "",
+            fone: "",
+            email: "",
+          },
+          status: "ativo",
+          data_cadastro: linha[50],
+        };
+      })
+    );
 
     // Salva os dados em um arquivo JSON
-    const jsonFilePath = path.join(__dirname, '..', 'uploads', 'clientes.json');
-    fs.writeFileSync(jsonFilePath, JSON.stringify(produtos, null, 2), 'utf8');
+    const jsonFilePath = path.join(__dirname, "..", "uploads", "clientes.json");
+    fs.writeFileSync(jsonFilePath, JSON.stringify(produtos, null, 2), "utf8");
 
-    res.status(200).json({ message: 'Produtos importados e salvos em ites.json com sucesso!' });
+    res.status(200).json({
+      message: "Produtos importados e salvos em ites.json com sucesso!",
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -431,13 +443,13 @@ exports.importClientesFromExcel = async (req, res) => {
 
 exports.syncProdutos = async (req, res) => {
   try {
-    const { lastSyncTime, codigo_loja, codigo_empresa, } = req.query;
+    const { lastSyncTime, codigo_loja, codigo_empresa } = req.query;
 
-    console.log(lastSyncTime)
+    console.log(lastSyncTime);
     const syncTime = new Date(lastSyncTime);
 
     // Log para verificar a data recebida
-    console.log('Data de sincronização recebida:', syncTime);
+    console.log("Data de sincronização recebida:", syncTime);
 
     // Encontre produtos alterados ou adicionados desde a última sincronização
     const produtos = await Produto.find({
@@ -447,15 +459,13 @@ exports.syncProdutos = async (req, res) => {
     });
 
     // Log para verificar quantos produtos foram encontrados
-    console.log('Produtos encontrados:', produtos.length);
+    console.log("Produtos encontrados:", produtos.length);
 
     res.status(200).json(produtos);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
-
-
+};
 
 /* exports.importProdutosFromExcel = async (req, res) => {
   try {

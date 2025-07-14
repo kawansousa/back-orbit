@@ -2,7 +2,7 @@ const Mecanico = require("../models/mecanico.model");
 
 exports.listaMecanicos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -27,9 +27,17 @@ exports.listaMecanicos = async (req, res) => {
       codigo_empresa,
     };
 
-    // Adiciona filtro de nome com regex se searchTerm existir
+    // Adiciona filtro de busca se searchTerm existir
     if (searchTerm) {
-      filtros.nome = { $regex: searchTerm, $options: "i" }; // "i" = case-insensitive
+      if (searchType === 'todos') {
+        filtros.$or = [
+          { nome: { $regex: searchTerm, $options: 'i' } },
+          { especialidade: { $regex: searchTerm, $options: 'i' } },
+          { telefone: { $regex: searchTerm, $options: 'i' } },
+        ];
+      } else {
+        filtros[searchType] = { $regex: searchTerm, $options: 'i' };
+      }
     }
 
     const mecanicos = await Mecanico.find(filtros)
@@ -50,6 +58,8 @@ exports.listaMecanicos = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
 
 exports.createMecanico = async (req, res) => {
   try {

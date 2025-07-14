@@ -157,7 +157,6 @@ const OsSchema = new mongoose.Schema({
   servicos: [servicosOsSchema],
   forma_pagamento: [pagamentoOsSchema],
   parcelas: [parcelasOsSchema],
-  observacoes: { type: String, required: true },
 });
 
 module.exports = mongoose.model("Os", OsSchema);

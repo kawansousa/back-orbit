@@ -107,7 +107,7 @@ exports.getMecanicosById = async (req, res) => {
 
     // Find client by ID, validating store and company
     const Mecanico = await Mecanico.findOne({
-      _id: req.params.id,
+      codigo_mecanico: req.params.id,
       codigo_loja,
       codigo_empresa,
     });
@@ -119,16 +119,6 @@ exports.getMecanicosById = async (req, res) => {
       });
     }
 
-    // Find the city based on the city code in the client's address
-    const cidade = await Cidades.findOne({
-      codigo: parseInt(Mecanico.endereco.cidade, 10),
-    });
-
-    if (cidade) {
-      Mecanico.endereco.cidade = cidade.nome;
-    }
-
-    // Return found client with city name
     res.status(200).json(Mecanico);
   } catch (error) {
     res.status(500).json({ error: error.message });

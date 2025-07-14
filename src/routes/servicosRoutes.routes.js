@@ -8,6 +8,6 @@ router.post("/servico", autoIncrementServicos, servicoController.createServico);
 router.get("/servicos", servicoController.listaServicos);
 router.get("/servico/:id", servicoController.getServicosById);
 router.put("/servico/:id", servicoController.updateServico);
-router.delete("/servico/:id", servicoController.deleteServico);
+router.patch("/servico", servicoController.deleteServico);
 
 module.exports = router;

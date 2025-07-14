@@ -1,4 +1,4 @@
-const OS = require("../models/os.model");
+const Os = require("../models/os.model");
 
 async function autoIncrementOs(req, res, next) {
   try {
@@ -12,7 +12,7 @@ async function autoIncrementOs(req, res, next) {
     }
 
     // Buscar o último código do OS para a combinação de loja e empresa
-    const lastOs = await OS.findOne({
+    const lastOs = await Os.findOne({
       codigo_loja,
       codigo_empresa,
     }).sort({ codigo_os: -1 });

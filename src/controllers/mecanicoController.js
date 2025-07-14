@@ -1,5 +1,6 @@
-const Servicos = require("../models/servicos.model");
-exports.listaServicos = async (req, res) => {
+const Mecanico = require("../models/mecanico.model");
+
+exports.listaMecanicos = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa, page, limit, searchTerm } = req.query;
 
@@ -26,66 +27,74 @@ exports.listaServicos = async (req, res) => {
       codigo_empresa,
     };
 
-    // Adiciona filtro de descrição com regex se searchTerm existir
+    // Adiciona filtro de nome com regex se searchTerm existir
     if (searchTerm) {
-      filtros.descricao = { $regex: searchTerm, $options: "i" }; // "i" = case-insensitive
+      filtros.nome = { $regex: searchTerm, $options: "i" }; // "i" = case-insensitive
     }
 
-    const servicos = await Servicos.find(filtros).skip(skip).limit(limitNumber);
-    const totalServicos = await Servicos.countDocuments(filtros);
+    const mecanicos = await Mecanico.find(filtros)
+      .skip(skip)
+      .limit(limitNumber);
+
+    const totalMecanicos = await Mecanico.countDocuments(filtros);
 
     res.status(200).json({
-      total: totalServicos,
+      total: totalMecanicos,
       page: pageNumber,
       limit: limitNumber,
-      totalPages: Math.ceil(totalServicos / limitNumber),
-      data: servicos,
+      totalPages: Math.ceil(totalMecanicos / limitNumber),
+      data: mecanicos,
     });
   } catch (error) {
+    console.error("Erro ao listar mecânicos:", error); // Log para capturar erros
     res.status(500).json({ error: error.message });
   }
 };
 
-exports.createServico = async (req, res) => {
+exports.createMecanico = async (req, res) => {
   try {
     const {
       codigo_loja,
       codigo_empresa,
-      codigo_servico,
-      descricao,
+      nome,
+      especialidade,
+      telefone,
+      comissao,
       status,
-      preco,
+      codigo_mecanico,
     } = req.body;
 
-    if (!codigo_loja || !codigo_empresa) {
+    if (!codigo_loja || !codigo_empresa || !nome) {
       return res.status(400).json({
-        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+        error: "Os campos codigo_loja, codigo_empresa e nome são obrigatórios.",
       });
     }
 
-    const novoServico = new Servicos({
+    const novoMecanico = new Mecanico({
       codigo_loja,
       codigo_empresa,
-      codigo_servico,
-      descricao,
-      status,
-      preco: parseInt(preco, 10),
+      codigo_mecanico,
+      nome,
+      comissao,
+      especialidade,
+      telefone,
+      status: status || "ativo",
       data_criacao: new Date(),
       data_atualizacao: new Date(),
     });
 
-    await novoServico.save();
+    await novoMecanico.save();
 
     res.status(201).json({
-      message: "Servico criado com sucesso",
-      Servico: novoServico,
+      message: "Mecânico criado com sucesso",
+      mecanico: novoMecanico,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-exports.getServicosById = async (req, res) => {
+exports.getMecanicosById = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;
 
@@ -97,36 +106,36 @@ exports.getServicosById = async (req, res) => {
     }
 
     // Find client by ID, validating store and company
-    const Servicos = await Servicos.findOne({
+    const Mecanico = await Mecanico.findOne({
       _id: req.params.id,
       codigo_loja,
       codigo_empresa,
     });
 
     // Check if client was found
-    if (!Servicos) {
+    if (!Mecanico) {
       return res.status(404).json({
-        error: "Servicos não encontrado para essa loja e empresa.",
+        error: "Mecanico não encontrado para essa loja e empresa.",
       });
     }
 
     // Find the city based on the city code in the client's address
     const cidade = await Cidades.findOne({
-      codigo: parseInt(Servicos.endereco.cidade, 10),
+      codigo: parseInt(Mecanico.endereco.cidade, 10),
     });
 
     if (cidade) {
-      Servicos.endereco.cidade = cidade.nome;
+      Mecanico.endereco.cidade = cidade.nome;
     }
 
     // Return found client with city name
-    res.status(200).json(Servicos);
+    res.status(200).json(Mecanico);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-exports.updateServico = async (req, res) => {
+exports.updateMecanico = async (req, res) => {
   const { codigo_loja, codigo_empresa, descricao, preco, status } = req.body;
 
   try {
@@ -148,7 +157,7 @@ exports.updateServico = async (req, res) => {
     }
 
     // Update service, validating store and company
-    const updatedServico = await Servicos.findOneAndUpdate(
+    const updatedServico = await Mecanico.findOneAndUpdate(
       { codigo_servico: req.params.id, codigo_loja, codigo_empresa },
       { descricao, preco, status },
       { new: true }
@@ -171,7 +180,7 @@ exports.updateServico = async (req, res) => {
   }
 };
 
-exports.deleteServico = async (req, res) => {
+exports.deleteMecanico = async (req, res) => {
   const { codigo_loja, codigo_empresa, codigo_servico } = req.body;
 
   try {
@@ -184,7 +193,7 @@ exports.deleteServico = async (req, res) => {
     }
 
     // Update service status to "cancelado"
-    const updatedServico = await Servicos.findOneAndUpdate(
+    const updatedServico = await Mecanico.findOneAndUpdate(
       { codigo_servico, codigo_loja, codigo_empresa },
       { status: "cancelado" },
       { new: true }

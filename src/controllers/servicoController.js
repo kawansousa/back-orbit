@@ -1,8 +1,7 @@
 const Servicos = require("../models/servicos.model");
-
 exports.listaServicos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm } = req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -21,13 +20,18 @@ exports.listaServicos = async (req, res) => {
 
     const skip = (pageNumber - 1) * limitNumber;
 
+    // Filtros obrigatórios
     const filtros = {
       codigo_loja,
       codigo_empresa,
     };
 
-    const servicos = await Servicos.find(filtros).skip(skip).limit(limitNumber);
+    // Adiciona filtro de descrição com regex se searchTerm existir
+    if (searchTerm) {
+      filtros.descricao = { $regex: searchTerm, $options: "i" }; // "i" = case-insensitive
+    }
 
+    const servicos = await Servicos.find(filtros).skip(skip).limit(limitNumber);
     const totalServicos = await Servicos.countDocuments(filtros);
 
     res.status(200).json({

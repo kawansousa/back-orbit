@@ -18,6 +18,7 @@ const entradasRoutes = require("./routes/etradas.routes");
 const categoriaContabilRoutes = require("./routes/categoriaContabilRoutes.routes");
 const contasBancariasRoutes = require("./routes/contasBancariasRoutes.routes");
 const servicosRoutes = require("./routes/servicosRoutes.routes");
+const osRoutes = require("./routes/osRoutes.routes");
 const auth = require("./middlewares/auth");
 
 // Usar o CORS com as opções definidas
@@ -40,9 +41,9 @@ app.use("/vendas", auth, vendasRoutes);
 app.use("/entradas", auth, entradasRoutes);
 app.use("/categoriaContabil", categoriaContabilRoutes);
 app.use("/contasBancarias", contasBancariasRoutes);
-
+app.use("/servicos", auth, servicosRoutes);
+app.use("/os", auth, osRoutes);
 /* os  */
-app.use("/os", auth, servicosRoutes);
 
 connectToDatabase();
 module.exports = app;

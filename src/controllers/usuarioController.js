@@ -1,6 +1,6 @@
-const User = require('../models/user.model');
-const bcrypt = require('bcrypt')
-const jwt = require('jsonwebtoken')
+const User = require("../models/user.model");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 exports.createUser = async (req, res) => {
   const { name, email, password, acesso_loja, type, permissions } = req.body;
@@ -8,9 +8,9 @@ exports.createUser = async (req, res) => {
   try {
     // Verifica se o usuário já existe pelo email
     const existingUser = await User.findOne({ email });
-    
+
     if (existingUser) {
-      return res.status(400).json({ message: 'Usuário já cadastrado' });
+      return res.status(400).json({ message: "Usuário já cadastrado" });
     }
 
     // Gera o hash da senha
@@ -24,11 +24,11 @@ exports.createUser = async (req, res) => {
       password: hashedPassword,
       acesso_loja,
       type,
-      permissions
+      permissions,
     });
 
     await user.save();
-    
+
     // Retorna o usuário e o token
     res.status(201).json({ user });
   } catch (error) {
@@ -45,7 +45,7 @@ exports.loginUser = async (req, res) => {
 
     // Verifica se o usuário foi encontrado
     if (!user) {
-      return res.status(404).json({ message: 'Usuário não encontrado' });
+      return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
     // Compara a senha fornecida com a senha criptografada no banco (campo correto é `password`)
@@ -53,7 +53,7 @@ exports.loginUser = async (req, res) => {
 
     // Verifica se a senha está correta
     if (!isMatch) {
-      return res.status(400).json({ message: 'Senha inválida' });
+      return res.status(400).json({ message: "Senha inválida" });
     }
 
     // Gera um token JWT
@@ -69,7 +69,7 @@ exports.loginUser = async (req, res) => {
     res.status(200).json({ token, user: userWithoutPassword });
   } catch (err) {
     console.error(err); // Adiciona um log para verificar o erro exato
-    res.status(500).json({ message: 'Erro, tente novamente' });
+    res.status(500).json({ message: "Erro, tente novamente" });
   }
 };
 // Listar todos os usuários
@@ -79,17 +79,19 @@ exports.getUsers = async (req, res) => {
   try {
     // Verifica se os códigos de empresa e loja foram fornecidos
     if (!codigo_empresas || !codigo_loja) {
-      return res.status(400).json({ error: 'Código de empresa e loja são obrigatórios' });
+      return res
+        .status(400)
+        .json({ error: "Código de empresa e loja são obrigatórios" });
     }
 
     // Filtra usuários que têm acesso à empresa e loja especificadas
     const users = await User.find({
-      'acesso_loja': {
+      acesso_loja: {
         $elemMatch: {
-          'codigo_loja': codigo_loja,
-          'codigo_empresas.codigo': codigo_empresas
-        }
-      }
+          codigo_loja: codigo_loja,
+          "codigo_empresas.codigo": codigo_empresas,
+        },
+      },
     });
 
     res.status(200).json(users);
@@ -102,7 +104,7 @@ exports.getUsers = async (req, res) => {
 exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
     res.status(200).json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -115,7 +117,7 @@ exports.updateUser = async (req, res) => {
     const user = await User.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
     });
-    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
     res.status(200).json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -126,10 +128,9 @@ exports.updateUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-    res.status(200).json({ message: 'Usuário deletado com sucesso' });
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+    res.status(200).json({ message: "Usuário deletado com sucesso" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-

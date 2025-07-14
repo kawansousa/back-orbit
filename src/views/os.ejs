@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>OS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            font-size: 10px;
+
+        }
+
+        .page {
+            background-color: white;
+            width: 210mm;
+            /* A4 width */
+            min-height: 297mm;
+            /* A4 height */
+            margin: 0 auto;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .invoice-container {
+            flex-grow: 1;
+        }
+
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #000000;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .invoice-header img {
+            max-height: 80px;
+            max-width: 150px;
+        }
+
+        .company-info h1 {
+            color: #000000;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .invoice-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .client-info,
+        .sale-info {
+            width: 45%;
+        }
+
+        .invoice-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .invoice-items th,
+        .invoice-items td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: left;
+        }
+
+        .invoice-items th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+
+        .invoice-summary {
+            text-align: right;
+            margin-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+
+        .payment-info {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+        .parcelas {
+            width: 30%;
+            font-size: 9px;
+            border-collapse: collapse;
+        }
+
+        .parcelas th,
+        .parcelas td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: left;
+        }
+
+        .status-pago {
+            color: green;
+        }
+
+        .status-cancelado {
+            color: red;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .footer img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="invoice-container">
+            <div class="invoice-header">
+                <div>
+                    <% if (logo) { %>
+                        <img src="<%= logo %>" alt="Logo">
+                        <% } %>
+                </div>
+
+                <div class="company-info">
+                    <h1>Comprovante de Venda</h1>
+                    <p>Loja: <%= os.codigo_loja %> | Empresa: <%= os.codigo_empresa %>
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="payment-info">
+                <h3>Itens</h3>
+                <table class="invoice-items">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Qtd</th>
+                            <th>Preço Unit.</th>
+                            <th>Desconto</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% os.itens.forEach(item=> { %>
+                            <tr>
+                                <td>
+                                    <%= item.codigo_produto %>
+                                </td>
+                                <td>
+                                    <%= item.descricao %>
+                                </td>
+                                <td>
+                                    <%= item.quantidade %>
+                                </td>
+                                <td>R$ <%= item.preco_unitario.toFixed(2) %>
+                                </td>
+                                <td>
+                                    <%= item.desconto_percentual %>% (R$ <%= item.desconto_valor.toFixed(2) %>)
+                                </td>
+                                <td>R$ <%= item.total_unitario.toFixed(2) %>
+                                </td>
+                            </tr>
+                            <% }); %>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="payment-info">
+                <h3>Serviços</h3>
+                <table class="invoice-items">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Qtd</th>
+                            <th>Preço</th>
+                            <th>Desconto</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% os.servicos.forEach(serv=> { %>
+                            <tr>
+                                <td>
+                                    <%= serv.codigo_servico %>
+                                </td>
+                                <td>
+                                    <%= serv.descricao %>
+                                </td>
+                                <td>
+                                    <%= serv.quantidade %>
+                                </td>
+                                <td>R$ <%= serv.preco.toFixed(2) %>
+                                </td>
+                                <td>
+                                    <%= serv.desconto_percentual %>% (R$ <%= serv.desconto_valor.toFixed(2) %>)
+                                </td>
+                                <td>R$ <%= serv.total_servico.toFixed(2) %>
+                                </td>
+                            </tr>
+                            <% }); %>
+                    </tbody>
+                </table>
+            </div>
+            <div class="invoice-details">
+                <div class="client-info">
+                    <h3>Informações do Cliente</h3>
+                    <% if (os.cliente) { %>
+                        <p><strong>Nome:</strong>
+                            <%= os.cliente.nome %>
+                        </p>
+                        <p><strong>CPF:</strong>
+                            <%= os.cliente.cpf %>
+                        </p>
+                        <% } else if (os.cliente_sem_cadastro && os.cliente_sem_cadastro.nome) { %>
+                            <p><strong>Nome:</strong>
+                                <%= os.cliente_sem_cadastro.nome %>
+                            </p>
+                            <% } %>
+                </div>
+                <div class="sale-info">
+                    <h3>Detalhes da Venda</h3>
+                    <p><strong>Código da OS:</strong>
+                        <%= os.codigo_os %>
+                    </p>
+                    <p><strong>Status:</strong>
+                        <span class="status-<%= os.status %>">
+                            <%= os.status==='concluida' ? 'Concluída' : 'Pendente' %>
+                        </span>
+                    </p>
+                </div>
+
+                <% if (os.parcelas && os.parcelas.length> 0) { %>
+                    <div class="payment-info">
+                        <h3>Parcelas</h3>
+                        <table class="parcelas">
+                            <thead>
+                                <tr>
+                                    <th>Valor</th>
+                                    <th>Data de Vencimento</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% os.parcelas.forEach(parcela=> { %>
+                                    <tr>
+                                        <td>R$ <%= parcela.valor_total.toFixed(2) %>
+                                        </td>
+                                        <td>
+                                            <%= new Date(parcela.data_vencimento).toLocaleDateString('pt-BR') %>
+                                        </td>
+                                    </tr>
+                                    <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                    <% } %>
+
+                        <% if (os.observacoes) { %>
+                            <div class="payment-info">
+                                <h3>Observações</h3>
+                                <p>
+                                    <%= os.observacoes %>
+                                </p>
+                            </div>
+                            <% } %>
+            </div>
+
+            <div class="footer">
+                <img src="<%= rodape %>" alt="Rodapé">
+            </div>
+        </div>
+</body>
+
+</html>

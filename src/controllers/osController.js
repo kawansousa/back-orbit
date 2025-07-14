@@ -12,12 +12,10 @@ exports.listaOs = async (req, res) => {
       codigo_empresa,
       page,
       limit,
-      status,
-      responsavel,
       searchTerm,
+      searchType,
     } = req.query;
 
-    // ✅ Validação dos campos obrigatórios
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
@@ -40,29 +38,57 @@ exports.listaOs = async (req, res) => {
       codigo_empresa,
     };
 
-    if (status) {
-      filtros.status = status;
-    }
-
-    if (responsavel) {
-      filtros.responsavel = { $regex: responsavel, $options: "i" };
-    }
-
     if (searchTerm) {
-      filtros.$or = [
-        { "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" } },
-        { observacoes: { $regex: searchTerm, $options: "i" } },
-        { "itens.descricao": { $regex: searchTerm, $options: "i" } },
-        { "servicos.descricao": { $regex: searchTerm, $options: "i" } },
-      ];
+      if (searchType === "codigo") {
+        const codigoNumerico = parseInt(searchTerm, 10);
+        if (!isNaN(codigoNumerico)) {
+          filtros.codigo_os = codigoNumerico;
+        } else {
+          filtros.codigo_os = { $regex: searchTerm, $options: "i" };
+        }
+      } else if (searchType === "cliente") {
+        filtros.$or = [
+          { "cliente.nome": { $regex: searchTerm, $options: "i" } },
+          { "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" } },
+        ];
+      } else if (searchType === "responsavel") {
+        filtros.responsavel = { $regex: searchTerm, $options: "i" };
+      } else {
+        const codigoNumerico = parseInt(searchTerm, 10);
+        filtros.$or = [
+          ...((!isNaN(codigoNumerico)) ? [{ codigo_os: codigoNumerico }] : []),
+          { codigo_os: { $regex: searchTerm, $options: "i" } },
+          { "cliente.nome": { $regex: searchTerm, $options: "i" } },
+          { "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" } },
+          { responsavel: { $regex: searchTerm, $options: "i" } },
+        ];
+      }
     }
 
+    // Log para debug
+    console.log('Filtros aplicados:', JSON.stringify(filtros, null, 2));
+
+    // Consulta ao banco de dados
     const lista = await Os.find(filtros)
       .skip(skip)
       .limit(limitNumber)
       .sort({ dataAbertura: -1 });
 
     const total = await Os.countDocuments(filtros);
+
+    // Log para debug
+    console.log(`Encontrados ${total} registros para searchTerm: "${searchTerm}", searchType: "${searchType}"`);
+
+    if (lista.length === 0 && searchTerm) {
+      return res.status(404).json({
+        message: "Nenhuma ordem de serviço encontrada para os filtros fornecidos.",
+        total: 0,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: 0,
+        data: [],
+      });
+    }
 
     res.status(200).json({
       total,

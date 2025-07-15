@@ -2,10 +2,17 @@ const express = require("express");
 const router = express.Router();
 const osController = require("../controllers/osController");
 const autoIncrementOs = require("../middlewares/autoIncrementOs");
+const autoIncrementreceber = require("../middlewares/autoIncrementreceber");
+const autoIncrementMovimento = require("../middlewares/autoIncrementMovimento");
 
 // Criar novo Cliente com middleware
 router.get("/os", osController.listaOs);
-router.post("/os", autoIncrementOs, osController.createOs);
+router.post(
+  "/os",
+  autoIncrementOs,
+  autoIncrementMovimento,
+  osController.createOs
+);
 router.get("/os/:id", osController.getOsById);
 router.put("/os/:id", osController.updateOs);
 router.delete("/os/:id", osController.deleteOs);

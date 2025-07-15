@@ -4,17 +4,14 @@ const Loja = require("../models/lojas.model");
 const path = require("path");
 const ejs = require("ejs");
 const puppeteer = require("puppeteer");
+const Movimentacao = require("../models/movimentacoes_caixa.model");
+const Caixa = require("../models/caixa.model");
+const mongoose = require("mongoose");
 
 exports.listaOs = async (req, res) => {
   try {
-    const {
-      codigo_loja,
-      codigo_empresa,
-      page,
-      limit,
-      searchTerm,
-      searchType,
-    } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
+      req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -49,24 +46,28 @@ exports.listaOs = async (req, res) => {
       } else if (searchType === "cliente") {
         filtros.$or = [
           { "cliente.nome": { $regex: searchTerm, $options: "i" } },
-          { "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" } },
+          {
+            "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" },
+          },
         ];
       } else if (searchType === "responsavel") {
         filtros.responsavel = { $regex: searchTerm, $options: "i" };
       } else {
         const codigoNumerico = parseInt(searchTerm, 10);
         filtros.$or = [
-          ...((!isNaN(codigoNumerico)) ? [{ codigo_os: codigoNumerico }] : []),
+          ...(!isNaN(codigoNumerico) ? [{ codigo_os: codigoNumerico }] : []),
           { codigo_os: { $regex: searchTerm, $options: "i" } },
           { "cliente.nome": { $regex: searchTerm, $options: "i" } },
-          { "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" } },
+          {
+            "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" },
+          },
           { responsavel: { $regex: searchTerm, $options: "i" } },
         ];
       }
     }
 
     // Log para debug
-    console.log('Filtros aplicados:', JSON.stringify(filtros, null, 2));
+    console.log("Filtros aplicados:", JSON.stringify(filtros, null, 2));
 
     // Consulta ao banco de dados
     const lista = await Os.find(filtros)
@@ -77,11 +78,14 @@ exports.listaOs = async (req, res) => {
     const total = await Os.countDocuments(filtros);
 
     // Log para debug
-    console.log(`Encontrados ${total} registros para searchTerm: "${searchTerm}", searchType: "${searchType}"`);
+    console.log(
+      `Encontrados ${total} registros para searchTerm: "${searchTerm}", searchType: "${searchType}"`
+    );
 
     if (lista.length === 0 && searchTerm) {
       return res.status(404).json({
-        message: "Nenhuma ordem de serviço encontrada para os filtros fornecidos.",
+        message:
+          "Nenhuma ordem de serviço encontrada para os filtros fornecidos.",
         total: 0,
         page: pageNumber,
         limit: limitNumber,
@@ -104,7 +108,10 @@ exports.listaOs = async (req, res) => {
 };
 
 exports.createOs = async (req, res) => {
+  const session = await mongoose.startSession();
+
   try {
+    session.startTransaction();
     const {
       codigo_loja,
       codigo_empresa,
@@ -119,6 +126,7 @@ exports.createOs = async (req, res) => {
       itens,
       servicos,
       forma_pagamento,
+      codigo_movimento,
       parcelas,
     } = req.body;
 
@@ -145,6 +153,69 @@ exports.createOs = async (req, res) => {
       forma_pagamento,
       parcelas,
     });
+
+    const caixa = await Caixa.findOne({
+      codigo_loja,
+      codigo_empresa,
+      status: "aberto",
+    }).session(session);
+
+    // Register cash movements for each payment method
+    const movimentacoes = forma_pagamento.map(
+      (pagamento) =>
+        new Movimentacao({
+          codigo_loja,
+          codigo_empresa,
+          caixaId: caixa._id,
+          codigo_movimento,
+          caixa: caixa.caixa,
+          codigo_caixa: caixa.codigo_caixa,
+          tipo_movimentacao: "entrada",
+          valor: pagamento.valor_pagamento,
+          meio_pagamento: pagamento.meio_pagamento,
+          documento_origem: novaOs.codigo_os,
+          origem: "os",
+          categoria_contabil: "1.1.1",
+        })
+    );
+
+    const recebimentos = [];
+
+    if (novaOs.tipo === "aprazo") {
+      for (let i = 0; i < parcelas.length; i++) {
+        const { valor_total, data_vencimento, observacao, codigo_receber } =
+          parcelas[i];
+
+        if (!valor_total || valor_total <= 0) {
+          throw new Error(`Valor total inválido na parcela ${i + 1}`);
+        }
+
+        const novoReceber = new Receber({
+          codigo_loja,
+          codigo_empresa,
+          cliente,
+          origem: "venda",
+          documento_origem: novaOs.codigo_venda,
+          valor_total,
+          valor_restante: valor_total,
+          data_vencimento,
+          codigo_receber,
+          observacao,
+          status: "aberto",
+          fatura: `${i + 1}/${parcelas.length}`,
+        });
+
+        recebimentos.push(novoReceber);
+      }
+    }
+
+    // Save all documents within the transaction
+    await Promise.all([
+      ...movimentacoes.map((mov) => mov.save({ session })),
+      caixa.save({ session }),
+      novaOs.save({ session }),
+      ...recebimentos.map((receb) => receb.save({ session })),
+    ]);
 
     await novaOs.save();
 

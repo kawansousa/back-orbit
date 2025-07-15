@@ -1,7 +1,9 @@
 const Servicos = require("../models/servicos.model");
+
 exports.listaServicos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
+      req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -26,13 +28,13 @@ exports.listaServicos = async (req, res) => {
       codigo_empresa,
     };
 
-    // Adiciona filtro de busca com base no searchType e searchTerm
+/*     // Adiciona filtro de busca com base no searchType e searchTerm
     if (searchTerm) {
       if (searchType === "todos") {
         filtros.$or = [
           { codigo_servico: searchTerm },
           { descricao: { $regex: searchTerm, $options: "i" } },
-          { preco: parseFloat(searchTerm) }
+          { preco: parseFloat(searchTerm) },
         ];
       } else if (searchType === "nome") {
         filtros.codigo_servico = searchTerm;
@@ -41,7 +43,7 @@ exports.listaServicos = async (req, res) => {
       } else if (searchType === "preco") {
         filtros.preco = parseFloat(searchTerm);
       }
-    }
+    } */
 
     const servicos = await Servicos.find(filtros).skip(skip).limit(limitNumber);
     const totalServicos = await Servicos.countDocuments(filtros);

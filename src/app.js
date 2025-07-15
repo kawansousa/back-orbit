@@ -42,8 +42,8 @@ app.use("/vendas", auth, vendasRoutes);
 app.use("/entradas", auth, entradasRoutes);
 app.use("/categoriaContabil", categoriaContabilRoutes);
 app.use("/contasBancarias", contasBancariasRoutes);
-app.use("/servicos", auth, servicosRoutes);
 app.use("/os", auth, osRoutes);
+app.use("/servicos", auth, servicosRoutes);
 app.use("/mecanicos", auth, mecanicosRoutes);
 /* os  */
 

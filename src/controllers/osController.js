@@ -67,7 +67,6 @@ exports.listaOs = async (req, res) => {
     }
 
     // Log para debug
-    console.log("Filtros aplicados:", JSON.stringify(filtros, null, 2));
 
     // Consulta ao banco de dados
     const lista = await Os.find(filtros)
@@ -76,11 +75,6 @@ exports.listaOs = async (req, res) => {
       .sort({ dataAbertura: -1 });
 
     const total = await Os.countDocuments(filtros);
-
-    // Log para debug
-    console.log(
-      `Encontrados ${total} registros para searchTerm: "${searchTerm}", searchType: "${searchType}"`
-    );
 
     if (lista.length === 0 && searchTerm) {
       return res.status(404).json({
@@ -217,7 +211,7 @@ exports.createOs = async (req, res) => {
       ...recebimentos.map((receb) => receb.save({ session })),
     ]);
 
-    await novaOs.save();
+    await session.commitTransaction();
 
     res.status(201).json({
       message: "Ordem de Serviço criada com sucesso",

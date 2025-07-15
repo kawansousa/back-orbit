@@ -93,6 +93,7 @@ exports.criarVenda = async (req, res) => {
           categoria_contabil: "1.1.1",
         })
     );
+    console.log("Movimentações registradas:", movimentacoes);
 
     const recebimentos = [];
 
@@ -284,7 +285,6 @@ exports.cancelarVenda = async (req, res) => {
           historico: "Cancelamento de venda",
         });
 
-        console.log(novaMovimentacao);
 
         await novaMovimentacao.save({ session });
       } else {

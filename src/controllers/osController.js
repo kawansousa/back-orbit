@@ -7,6 +7,8 @@ const puppeteer = require("puppeteer");
 const Movimentacao = require("../models/movimentacoes_caixa.model");
 const Caixa = require("../models/caixa.model");
 const mongoose = require("mongoose");
+const Produto = require("../models/produtos.model"); // Import the Produto model
+const Receber = require("../models/receber.model");
 
 exports.listaOs = async (req, res) => {
   try {
@@ -189,7 +191,7 @@ exports.createOs = async (req, res) => {
           codigo_empresa,
           cliente,
           origem: "venda",
-          documento_origem: novaOs.codigo_venda,
+          documento_origem: novaOs.codigo_os,
           valor_total,
           valor_restante: valor_total,
           data_vencimento,
@@ -210,6 +212,38 @@ exports.createOs = async (req, res) => {
       novaOs.save({ session }),
       ...recebimentos.map((receb) => receb.save({ session })),
     ]);
+
+    for (const item of itens) {
+      const produto = await Produto.findOne({
+        codigo_loja,
+        codigo_empresa,
+        codigo_produto: item.codigo_produto,
+      }).session(session);
+
+      if (!produto) {
+        throw new Error(`Produto não encontrado: ${item.codigo_produto}`);
+      }
+
+      const configuracaoEstoque =
+        produto.configuracoes[0]?.controla_estoque || "SIM"; // Assume 'SIM' como padrão
+
+      if (configuracaoEstoque === "SIM") {
+        if (produto.estoque[0].estoque < item.quantidade) {
+          throw new Error(
+            `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`
+          );
+        }
+        produto.estoque[0].estoque -= item.quantidade;
+      } else if (configuracaoEstoque === "PERMITE_NEGATIVO") {
+        produto.estoque[0].estoque -= item.quantidade;
+      } else if (configuracaoEstoque === "NAO") {
+        // Se 'NAO', o estoque não é alterado
+        continue;
+      }
+
+      // Salvar o produto com o novo estoque
+      await produto.save({ session });
+    }
 
     await session.commitTransaction();
 
@@ -265,42 +299,192 @@ exports.getOsById = async (req, res) => {
 };
 
 exports.updateOs = async (req, res) => {
-  const { codigo_loja, codigo_empresa, nome } = req.body;
-
+  const session = await mongoose.startSession();
   try {
-    // Validate mandatory parameters
+    session.startTransaction();
+
+    const {
+      codigo_loja,
+      codigo_empresa,
+      cliente,
+      cliente_sem_cadastro,
+      status,
+      codigo_os,
+      dataAbertura,
+      dataFechamento,
+      responsavel,
+      observacoes,
+      itens,
+      servicos,
+      forma_pagamento,
+      codigo_movimento,
+      parcelas,
+    } = req.body;
+
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Validate name if present
-    if (nome !== undefined && nome.trim() === "") {
-      return res.status(400).json({ error: "Preencha o nome" });
-    }
+    const osExistente = await Os.findOne({
+      codigo_os,
+      codigo_loja,
+      codigo_empresa,
+    }).session(session);
 
-    // Update client, validating store and company
-    const updatedOs = await Os.findOneAndUpdate(
-      { _id: req.params.id, codigo_loja, codigo_empresa },
-      req.body,
-      { new: true }
-    );
-
-    // Check if client was found and updated
-    if (!updatedOs) {
+    if (!osExistente) {
       return res.status(404).json({
-        error: "Os não encontrado para essa loja e empresa.",
+        error: "Ordem de Serviço não encontrada.",
       });
     }
 
-    // Return updated client
-    res.status(200).json({
-      message: "Os atualizado",
-      Os: updatedOs,
+    // Verificar se a venda está associada ao mesmo caixa
+    const caixaAberto = await Caixa.findOne({
+      codigo_loja,
+      codigo_empresa,
+      status: "aberto",
+    }).session(session);
+
+    const movimentacoes = await Movimentacao.findOne({
+      documento_origem: String(osExistente.codigo_os), // Convertendo para string
+      codigo_loja,
+      codigo_empresa,
+      origem: "os",
+    }).session(session);
+
+    if (
+      caixaAberto == null ||
+      movimentacoes.codigo_caixa !== caixaAberto.codigo_caixa
+    ) {
+      await session.abortTransaction();
+      return res
+        .status(400)
+        .json({ message: "Alteração só é permitida no mesmo caixa." });
+    }
+    // Reverter o estoque dos itens vendidos
+    for (const item of osExistente.itens) {
+      const produto = await Produto.findOne({
+        codigo_loja,
+        codigo_empresa,
+        codigo_produto: item.codigo_produto,
+      }).session(session);
+
+      if (produto) {
+        produto.estoque[0].estoque += item.quantidade; // Repor o estoque
+        await produto.save({ session });
+      }
+    }
+
+    // Excluir movimentações e contas a receber associadas à venda
+    await Movimentacao.deleteMany({
+      documento_origem: osExistente.codigo_os,
+      origem: "os",
+      codigo_loja,
+      codigo_empresa,
+    }).session(session);
+
+    await Receber.deleteMany({
+      documento_origem: osExistente.codigo_os,
+      origem: "os",
+      codigo_loja,
+      codigo_empresa,
+    }).session(session);
+
+    // Validar e ajustar o estoque para os novos itens
+    for (const item of itens) {
+      const produto = await Produto.findOne({
+        codigo_loja,
+        codigo_empresa,
+        codigo_produto: item.codigo_produto,
+      }).session(session);
+
+      if (!produto || produto.estoque[0].estoque < item.quantidade) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          message: `Estoque insuficiente para o produto ${item.codigo_produto}`,
+        });
+      }
+
+      // Atualizar o estoque
+      produto.estoque[0].estoque -= item.quantidade;
+      await produto.save({ session });
+    }
+
+    // Atualiza os campos permitidos
+    osExistente.cliente = cliente || osExistente.cliente;
+    osExistente.cliente_sem_cadastro =
+      cliente_sem_cadastro || osExistente.cliente_sem_cadastro;
+    osExistente.status = status || osExistente.status;
+    osExistente.dataAbertura = dataAbertura
+      ? new Date(dataAbertura)
+      : osExistente.dataAbertura;
+    osExistente.dataFechamento = dataFechamento
+      ? new Date(dataFechamento)
+      : osExistente.dataFechamento;
+    osExistente.responsavel = responsavel || osExistente.responsavel;
+    osExistente.observacoes = observacoes || osExistente.observacoes;
+    osExistente.itens = itens || osExistente.itens;
+    osExistente.servicos = servicos || osExistente.servicos;
+    osExistente.forma_pagamento =
+      forma_pagamento || osExistente.forma_pagamento;
+    osExistente.parcelas = parcelas || osExistente.parcelas;
+
+    await osExistente.save({ session });
+
+    // Criar novas movimentações financeiras
+    for (const pagamento of forma_pagamento) {
+      const novaMovimentacao = new Movimentacao({
+        codigo_loja,
+        codigo_empresa,
+        caixaId: caixaAberto._id,
+        caixa: caixaAberto.caixa,
+        codigo_movimento,
+        codigo_caixa: caixaAberto.codigo_caixa,
+        tipo_movimentacao: "entrada",
+        valor: pagamento.valor_pagamento,
+        meio_pagamento: pagamento.meio_pagamento, // Aqui está o valor correto
+        documento_origem: codigo_os,
+        origem: "os",
+        categoria_contabil: "receita",
+        /*   historico: JSON.stringify(historico) || "os", */
+        historico: "alteração de OS",
+      });
+
+      await novaMovimentacao.save({ session });
+    }
+
+    // Criar novas parcelas (caso venda seja a prazo)
+    /*     if (tipo === "aprazo" && parcelas) {
+      for (const parcela of parcelas) {
+        const novaParcela = new Receber({
+          codigo_loja,
+          codigo_empresa,
+          cliente,
+          codigo_receber: parcela.codigo_receber,
+          documento_origem: String(codigo_os),
+          origem: "os",
+          valor_restante: parcela.valor_total,
+          valor_total: parcela.valor_total,
+          status: "aberto",
+          data_vencimento: parcela.data_vencimento,
+        });
+        await novaParcela.save({ session });
+      }
+    }
+ */
+    await session.commitTransaction();
+
+    return res.status(200).json({
+      message: "Ordem de Serviço atualizada com sucesso.",
+      os: osExistente,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    await session.abortTransaction();
+    console.error("Erro ao atualizar OS:", error);
+    return res.status(500).json({ error: error.message });
+  } finally {
+    session.endSession();
   }
 };
 

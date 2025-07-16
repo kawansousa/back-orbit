@@ -14,7 +14,7 @@ router.post(
   osController.createOs
 );
 router.get("/os/:id", osController.getOsById);
-router.put("/os/:id", osController.updateOs);
+router.patch("/updateOs", autoIncrementMovimento, osController.updateOs);
 router.delete("/os/:id", osController.deleteOs);
 router.get("/osPdf/:id", osController.generateOsPDF);
 

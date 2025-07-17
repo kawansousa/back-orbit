@@ -11,10 +11,16 @@ router.post(
   "/os",
   autoIncrementOs,
   autoIncrementMovimento,
+  autoIncrementreceber,
   osController.createOs
 );
-router.get("/os/:id", osController.getOsById);
-router.patch("/updateOs", autoIncrementMovimento, osController.updateOs);
+router.get("/os/:id", autoIncrementreceber, osController.getOsById);
+router.patch(
+  "/updateOs",
+  autoIncrementMovimento,
+  autoIncrementreceber,
+  osController.updateOs
+);
 router.delete("/os/:id", osController.deleteOs);
 router.get("/osPdf/:id", osController.generateOsPDF);
 

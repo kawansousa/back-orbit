@@ -146,8 +146,8 @@ const OsSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["aberta", "em andamento", "finalizada", "cancelada"],
-    default: "aberta",
+    enum: ["pendente", "andamento", "faturado", "cancelada"],
+    default: "pendente",
   },
   dataAbertura: { type: Date, default: Date.now },
   dataFechamento: { type: Date },

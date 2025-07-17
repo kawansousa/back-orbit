@@ -1,87 +1,95 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const ReceberSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
-    required: true
+    required: true,
   },
   codigo_empresa: {
     type: String,
-    required: true
+    required: true,
   },
   codigo_receber: {
     type: Number,
-    required: true
+    required: true,
   },
   fatura: {
     type: String,
   },
   cliente: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Cliente',
-    required: true
+    ref: "Cliente",
+    required: true,
   },
   origem: {
     type: String,
     required: true,
-    enum: ['venda', 'manual', 'outros']
+    enum: ["venda", "manual", "outros", "os"],
   },
   documento_origem: {
     type: String,
-    required: true
+    required: true,
   },
   valor_total: {
     type: Number,
-    required: true
+    required: true,
   },
   valor_restante: {
     type: Number,
-    required: true
+    required: true,
   },
   data_emissao: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   data_vencimento: {
     type: Date,
-    required: true
+    required: true,
   },
   status: {
     type: String,
     required: true,
-    enum: ['aberto', 'parcial', 'liquidado', 'cancelado'],
-    default: 'aberto'
+    enum: ["aberto", "parcial", "liquidado", "cancelado"],
+    default: "aberto",
   },
-  liquidacoes: [{
-    data: {
-      type: Date,
-      default: Date.now
+  liquidacoes: [
+    {
+      data: {
+        type: Date,
+        default: Date.now,
+      },
+      valor: {
+        type: Number,
+        required: true,
+      },
+      meio_pagamento: {
+        type: String,
+        required: true,
+        enum: [
+          "dinheiro",
+          "pix",
+          "cartao_credito",
+          "cartao_debito",
+          "cheque",
+          "aprazo",
+        ],
+      },
+      movimentacao: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Movimentacao",
+      },
+      observacao: {
+        type: String,
+      },
+      estornado: {
+        type: Boolean,
+        default: false,
+      },
     },
-    valor: {
-      type: Number,
-      required: true
-    },
-    meio_pagamento: {
-      type: String,
-      required: true,
-      enum: ['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'cheque' ,'aprazo']
-    },
-    movimentacao: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Movimentacao'
-    },
-    observacao: {
-      type: String
-    },
-    estornado: {
-      type: Boolean,
-      default: false
-    }
-  }],
+  ],
   observacao: {
-    type: String
-  }
-}
-);
+    type: String,
+  },
+});
 
-module.exports = mongoose.model('Receber', ReceberSchema);
+module.exports = mongoose.model("Receber", ReceberSchema);

@@ -103,22 +103,14 @@ const pagamentoOsSchema = new mongoose.Schema(
     valor_pagamento: {
       type: Number,
     },
-  },
-  { _id: false }
-);
-
-const parcelasOsSchema = new mongoose.Schema(
-  {
-    valor_total: {
-      type: Number,
-    },
-    descricao: {
-      type: String,
-      default: 0,
-      default: "",
-    },
-    data_vencimento: {
-      type: Date,
+    parcelas: {
+      type: Array,
+      valor_total: {
+        type: Number,
+      },
+      data_vencimento: {
+        type: Date,
+      },
     },
   },
   { _id: false }
@@ -163,7 +155,6 @@ const OsSchema = new mongoose.Schema({
   itens: [itemOsSchema],
   servicos: [servicosOsSchema],
   forma_pagamento: [pagamentoOsSchema],
-  parcelas: [parcelasOsSchema],
   observacaoGeral: { type: String },
 });
 

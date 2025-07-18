@@ -118,12 +118,20 @@ exports.createOs = async (req, res) => {
       dataAbertura,
       dataFechamento,
       responsavel,
-      observacoes,
+      telefone,
+      email,
+      placaVeiculo,
+      marcaVeiculo,
+      modeloVeiculo,
+      anoVeiculo,
+      corVeiculo,
+      observacaoVeiculo,
       itens,
       servicos,
       forma_pagamento,
       codigo_movimento,
       parcelas,
+      observacaoGeral,
     } = req.body;
 
     if (!codigo_loja || !codigo_empresa || !codigo_os) {
@@ -143,11 +151,19 @@ exports.createOs = async (req, res) => {
       dataAbertura: dataAbertura ? new Date(dataAbertura) : new Date(),
       dataFechamento: dataFechamento ? new Date(dataFechamento) : null,
       responsavel,
-      observacoes,
+      telefone,
+      email,
+      placaVeiculo,
+      marcaVeiculo,
+      modeloVeiculo,
+      anoVeiculo,
+      corVeiculo,
+      observacaoVeiculo,
       itens,
       servicos,
       forma_pagamento,
       parcelas,
+      observacaoGeral,
     });
 
     // Verifica se a OS está sendo criada como "faturado"

@@ -152,11 +152,19 @@ const OsSchema = new mongoose.Schema({
   dataAbertura: { type: Date, default: Date.now },
   dataFechamento: { type: Date },
   responsavel: { type: String },
-  observacoes: { type: String },
+  telefone: { type: String },
+  email: { type: String },
+  placaVeiculo: { type: String },
+  marcaVeiculo: { type: String },
+  modeloVeiculo: { type: String },
+  anoVeiculo: { type: String },
+  corVeiculo: { type: String },
+  observacaoVeiculo: { type: String },
   itens: [itemOsSchema],
   servicos: [servicosOsSchema],
   forma_pagamento: [pagamentoOsSchema],
   parcelas: [parcelasOsSchema],
+  observacaoGeral: { type: String },
 });
 
 module.exports = mongoose.model("Os", OsSchema);

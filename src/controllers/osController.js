@@ -333,12 +333,20 @@ exports.updateOs = async (req, res) => {
       dataAbertura,
       dataFechamento,
       responsavel,
-      observacoes,
+      telefone,
+      email,
+      placaVeiculo,
+      marcaVeiculo,
+      modeloVeiculo,
+      anoVeiculo,
+      corVeiculo,
+      observacaoVeiculo,
       itens,
       servicos,
       forma_pagamento,
       codigo_movimento,
       parcelas,
+      observacaoGeral,
     } = req.body;
 
     if (!codigo_loja || !codigo_empresa) {
@@ -490,12 +498,20 @@ exports.updateOs = async (req, res) => {
       ? new Date(dataFechamento)
       : osExistente.dataFechamento;
     osExistente.responsavel = responsavel || osExistente.responsavel;
-    osExistente.observacoes = observacoes || osExistente.observacoes;
+    osExistente.telefone = telefone || osExistente.telefone;
+    osExistente.email = email || osExistente.email;
+    osExistente.placaVeiculo = placaVeiculo || osExistente.placaVeiculo;
+    osExistente.marcaVeiculo = marcaVeiculo || osExistente.marcaVeiculo;
+    osExistente.modeloVeiculo = modeloVeiculo || osExistente.modeloVeiculo;
+    osExistente.anoVeiculo = anoVeiculo || osExistente.anoVeiculo;
+    osExistente.corVeiculo = corVeiculo || osExistente.corVeiculo;
+    osExistente.observacaoVeiculo = observacaoVeiculo || osExistente.observacaoVeiculo;
     osExistente.itens = itens || osExistente.itens;
     osExistente.servicos = servicos || osExistente.servicos;
     osExistente.forma_pagamento =
       forma_pagamento || osExistente.forma_pagamento;
     osExistente.parcelas = parcelas || osExistente.parcelas;
+    osExistente.observacaoGeral = observacaoGeral || osExistente.observacaoGeral;
 
     await osExistente.save({ session });
     await session.commitTransaction();

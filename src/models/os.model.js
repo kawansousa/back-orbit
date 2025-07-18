@@ -83,6 +83,18 @@ const servicosOsSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    mecanico: {
+      type: Array,
+      required: true,
+      codigo_mecanico: {
+        type: Number,
+        required: true,
+      },
+      nome: {
+        type: String,
+        required: true,
+      },
+    }
   },
   { _id: false }
 );
@@ -151,6 +163,7 @@ const OsSchema = new mongoose.Schema({
   modeloVeiculo: { type: String },
   anoVeiculo: { type: String },
   corVeiculo: { type: String },
+  observacaoVeiculo: { type: String },
   observacaoVeiculo: { type: String },
   itens: [itemOsSchema],
   servicos: [servicosOsSchema],

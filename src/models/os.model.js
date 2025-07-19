@@ -83,6 +83,18 @@ const servicosOsSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    mecanico: {
+      type: Array,
+      required: true,
+      codigo_mecanico: {
+        type: Number,
+        required: true,
+      },
+      nome: {
+        type: String,
+        required: true,
+      },
+    }
   },
   { _id: false }
 );
@@ -103,22 +115,14 @@ const pagamentoOsSchema = new mongoose.Schema(
     valor_pagamento: {
       type: Number,
     },
-  },
-  { _id: false }
-);
-
-const parcelasOsSchema = new mongoose.Schema(
-  {
-    valor_total: {
-      type: Number,
-    },
-    descricao: {
-      type: String,
-      default: 0,
-      default: "",
-    },
-    data_vencimento: {
-      type: Date,
+    parcelas: {
+      type: Array,
+      valor_total: {
+        type: Number,
+      },
+      data_vencimento: {
+        type: Date,
+      },
     },
   },
   { _id: false }
@@ -152,11 +156,19 @@ const OsSchema = new mongoose.Schema({
   dataAbertura: { type: Date, default: Date.now },
   dataFechamento: { type: Date },
   responsavel: { type: String },
-  observacoes: { type: String },
+  telefone: { type: String },
+  email: { type: String },
+  placaVeiculo: { type: String },
+  marcaVeiculo: { type: String },
+  modeloVeiculo: { type: String },
+  anoVeiculo: { type: String },
+  corVeiculo: { type: String },
+  observacaoVeiculo: { type: String },
+  observacaoVeiculo: { type: String },
   itens: [itemOsSchema],
   servicos: [servicosOsSchema],
   forma_pagamento: [pagamentoOsSchema],
-  parcelas: [parcelasOsSchema],
+  observacaoGeral: { type: String },
 });
 
 module.exports = mongoose.model("Os", OsSchema);

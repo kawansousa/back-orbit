@@ -74,6 +74,11 @@ exports.listaOs = async (req, res) => {
     const lista = await Os.find(filtros)
       .skip(skip)
       .limit(limitNumber)
+      .populate({
+        path: "cliente",
+        select: "nome codigo_cliente",
+        match: { codigo_empresa, codigo_loja },
+      })
       .sort({ dataAbertura: -1 });
 
     const total = await Os.countDocuments(filtros);

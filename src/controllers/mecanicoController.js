@@ -136,80 +136,104 @@ exports.getMecanicosById = async (req, res) => {
 };
 
 exports.updateMecanico = async (req, res) => {
-  const { codigo_loja, codigo_empresa, descricao, preco, status } = req.body;
-
   try {
+    const { codigo_loja, codigo_empresa, nome, especialidade, telefone, comissao, status } = req.body;
+
     // Validate mandatory parameters
-    if (!codigo_loja || !codigo_empresa || !descricao || !preco) {
+    if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error:
-          "Os campos codigo_loja, codigo_empresa, descricao e preco são obrigatórios.",
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Validate descricao and preco
-    if (descricao.trim() === "") {
-      return res.status(400).json({ error: "Preencha a descrição" });
+    // Validate at least one field to update
+    if (!nome && !especialidade && !telefone && comissao === undefined && !status) {
+      return res.status(400).json({
+        error: "Pelo menos um campo deve ser fornecido para atualização.",
+      });
     }
 
-    if (isNaN(preco) || preco <= 0) {
-      return res.status(400).json({ error: "Preço inválido" });
+    // Validate nome if provided
+    if (nome && nome.trim() === "") {
+      return res.status(400).json({ error: "Nome não pode estar vazio" });
     }
 
-    // Update service, validating store and company
-    const updatedServico = await Mecanico.findOneAndUpdate(
-      { codigo_servico: req.params.id, codigo_loja, codigo_empresa },
-      { descricao, preco, status },
+    // Validate especialidade if provided
+    if (especialidade && especialidade.trim() === "") {
+      return res.status(400).json({ error: "Especialidade não pode estar vazia" });
+    }
+
+    // Validate comissao if provided
+    if (comissao !== undefined && (isNaN(comissao) || comissao < 0 || comissao > 100)) {
+      return res.status(400).json({ error: "Comissão deve estar entre 0 e 100" });
+    }
+
+    // Build update object with only provided fields
+    const updateData = {
+      data_atualizacao: new Date(),
+    };
+
+    if (nome) updateData.nome = nome.trim();
+    if (especialidade) updateData.especialidade = especialidade.trim();
+    if (telefone) updateData.telefone = telefone.trim();
+    if (comissao !== undefined) updateData.comissao = Number(comissao);
+    if (status) updateData.status = status;
+
+    // Update mechanic, validating store and company
+    const updatedMecanico = await Mecanico.findOneAndUpdate(
+      { codigo_mecanico: req.params.id, codigo_loja, codigo_empresa },
+      updateData,
       { new: true }
     );
 
-    // Check if service was found and updated
-    if (!updatedServico) {
+    // Check if mechanic was found and updated
+    if (!updatedMecanico) {
       return res.status(404).json({
-        error: "Serviço não encontrado para essa loja e empresa.",
+        error: "Mecânico não encontrado para essa loja e empresa.",
       });
     }
 
-    // Return updated service
+    // Return updated mechanic
     res.status(200).json({
-      message: "Serviço atualizado",
-      servico: updatedServico,
+      message: "Mecânico atualizado com sucesso",
+      mecanico: updatedMecanico,
     });
   } catch (error) {
+    console.error("Erro ao atualizar mecânico:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
 exports.deleteMecanico = async (req, res) => {
-  const { codigo_loja, codigo_empresa, codigo_servico } = req.body;
+  const { codigo_loja, codigo_empresa, codigo_mecanico } = req.body;
 
   try {
     // Validate mandatory parameters
-    if (!codigo_loja || !codigo_empresa || !codigo_servico) {
+    if (!codigo_loja || !codigo_empresa || !codigo_mecanico) {
       return res.status(400).json({
         error:
-          "Os campos codigo_loja, codigo_empresa e codigo_servico são obrigatórios.",
+          "Os campos codigo_loja, codigo_empresa e codigo_mecanico são obrigatórios.",
       });
     }
 
     // Update service status to "cancelado"
-    const updatedServico = await Mecanico.findOneAndUpdate(
-      { codigo_servico, codigo_loja, codigo_empresa },
-      { status: "cancelado" },
+    const updatedMecanico = await Mecanico.findOneAndUpdate(
+      { codigo_mecanico, codigo_loja, codigo_empresa },
+      { status: "inativo" },
       { new: true }
     );
 
     // Check if service was found and updated
-    if (!updatedServico) {
+    if (!updatedMecanico) {
       return res.status(404).json({
-        error: "Serviço não encontrado para essa loja e empresa.",
+        error: "O Mecanico não foi encontrado nessa loja e empresa.",
       });
     }
 
     // Return updated service
     res.status(200).json({
-      message: "Status do serviço atualizado para cancelado",
-      servico: updatedServico,
+      message: "Status do mecânico atualizado para inativo",
+      servico: updatedMecanico,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

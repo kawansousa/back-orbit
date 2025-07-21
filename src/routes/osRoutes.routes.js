@@ -21,7 +21,7 @@ router.patch(
   autoIncrementreceber,
   osController.updateOs
 );
-router.delete("/os/:id", osController.deleteOs);
+router.patch("/os/", osController.cancelarOs);
 router.get("/osPdf/:id", osController.generateOsPDF);
 
 module.exports = router;

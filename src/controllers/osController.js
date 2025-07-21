@@ -534,16 +534,37 @@ exports.updateOs = async (req, res) => {
   }
 };
 
-exports.deleteOs = async (req, res) => {
+exports.cancelarOs = async (req, res) => {
+  const { codigo_loja, codigo_empresa, codigo_os } = req.body;
+
   try {
-    const Os = await Os.findByIdAndDelete(req.params.id);
-    if (!Os) {
-      return res.status(404).json({ error: "Os não encontrado" });
+    if (!codigo_loja || !codigo_empresa || !codigo_os) {
+      return res.status(400).json({
+        error:
+          "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
+      });
     }
-    res.status(200).json({ message: "Os removido com sucesso" });
+
+    const updatedOs = await Os.findOneAndUpdate(
+      { codigo_os, codigo_loja, codigo_empresa },
+      { status: "cancelada" },
+      { new: true }
+    );
+
+    if (!updatedOs) {
+      return res.status(404).json({
+        error: "A ordem de serviço não foi encontrado nessa loja e empresa.",
+      });
+    }
+    
+    res.status(200).json({
+      message: "Status da ordem de serviço atualizada para cancelada",
+      servico: updatedOs,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+
 };
 
 exports.generateOsPDF = async (req, res) => {

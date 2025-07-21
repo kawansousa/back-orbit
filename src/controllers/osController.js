@@ -326,8 +326,9 @@ exports.getOsById = async (req, res) => {
 
 exports.updateOs = async (req, res) => {
   const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    session.startTransaction();
     const {
       codigo_loja,
       codigo_empresa,
@@ -367,112 +368,166 @@ exports.updateOs = async (req, res) => {
     }).session(session);
 
     if (!osExistente) {
+      await session.abortTransaction();
       return res.status(404).json({
         error: "Ordem de Serviço não encontrada.",
       });
     }
 
-    if (status === "faturado") {
-      // Verifica caixa e movimentação (caso status atual seja faturado)
-      const caixaAberto = await Caixa.findOne({
-        codigo_loja,
-        codigo_empresa,
-        status: "aberto",
-      }).session(session);
+    const caixaAberto = await Caixa.findOne({
+      codigo_loja,
+      codigo_empresa,
+      status: "aberto",
+    }).session(session);
 
-      const movimentacoes = await Movimentacao.findOne({
-        documento_origem: String(osExistente.codigo_os),
-        codigo_loja,
-        codigo_empresa,
+    if (osExistente.status === "faturado") {
+      const todasMovimentacoes = await Movimentacao.find({
+        $or: [
+          { documento_origem: String(osExistente.codigo_os) },
+          { documento_origem: Number(osExistente.codigo_os) },
+          { documento_origem: osExistente.codigo_os }
+        ],
         origem: "os",
+        codigo_loja,
+        codigo_empresa,
       }).session(session);
 
-      if (
-        movimentacoes &&
-        movimentacoes.codigo_caixa !== caixaAberto?.codigo_caixa
-      ) {
-        await session.abortTransaction();
-        return res
-          .status(400)
-          .json({ message: "Alteração só é permitida no mesmo caixa." });
+      let movimentacaoCorreta = null;
+      
+      if (caixaAberto) {
+        movimentacaoCorreta = todasMovimentacoes.find(mov => 
+          mov.caixaId.toString() === caixaAberto._id.toString()
+        );
+        
+        if (!movimentacaoCorreta) {
+          const primeiraMovimentacao = todasMovimentacoes[0];
+          
+          if (primeiraMovimentacao) {
+            const saoIguais = String(primeiraMovimentacao.codigo_caixa) === String(caixaAberto.codigo_caixa);
+            
+            if (!saoIguais) {
+              await session.abortTransaction();
+              return res.status(400).json({ 
+                message: `Alteração só é permitida no mesmo caixa. OS foi faturada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`
+              });
+            }
+          }
+        }
       }
 
-      // Repor estoque dos itens anteriores
       for (const item of osExistente.itens) {
         const produto = await Produto.findOne({
           codigo_loja,
           codigo_empresa,
           codigo_produto: item.codigo_produto,
         }).session(session);
+
         if (produto) {
-          produto.estoque[0].estoque += item.quantidade;
-          await produto.save({ session });
+          const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+          
+          if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
+            produto.estoque[0].estoque += item.quantidade;
+            await produto.save({ session });
+          }
         }
       }
 
-      // Excluir movimentações e contas a receber anteriores
       await Movimentacao.deleteMany({
-        documento_origem: osExistente.codigo_os,
+        $or: [
+          { documento_origem: String(codigo_os) },
+          { documento_origem: Number(codigo_os) },
+          { documento_origem: codigo_os }
+        ],
         origem: "os",
         codigo_loja,
         codigo_empresa,
       }).session(session);
 
       await Receber.deleteMany({
-        documento_origem: osExistente.codigo_os,
+        $or: [
+          { documento_origem: String(codigo_os) },
+          { documento_origem: Number(codigo_os) },
+          { documento_origem: codigo_os }
+        ],
         origem: "os",
         codigo_loja,
         codigo_empresa,
       }).session(session);
     }
 
-    // Verifica e atualiza estoque dos novos itens
-    for (const item of itens) {
-      const produto = await Produto.findOne({
-        codigo_loja,
-        codigo_empresa,
-        codigo_produto: item.codigo_produto,
-      }).session(session);
-      if (!produto || produto.estoque[0].estoque < item.quantidade) {
+    if (status === "faturado") {
+      if (!caixaAberto) {
         await session.abortTransaction();
-        return res.status(400).json({
-          message: `Estoque insuficiente para o produto ${item.codigo_produto}`,
+        return res.status(400).json({ 
+          message: "Não há caixa aberto para processar o faturamento." 
         });
       }
-      produto.estoque[0].estoque -= item.quantidade;
-      await produto.save({ session });
-    }
 
-    // Cria movimentações se status === "faturado"
-    if (parcelas?.length && status === "faturado") {
-      const caixaAberto = await Caixa.findOne({
-        codigo_loja,
-        codigo_empresa,
-        status: "aberto",
-      }).session(session);
-
-      for (const pagamento of forma_pagamento) {
-        const novaMovimentacao = new Movimentacao({
+      for (const item of itens) {
+        const produto = await Produto.findOne({
           codigo_loja,
           codigo_empresa,
-          caixaId: caixaAberto._id,
-          caixa: caixaAberto.caixa,
-          codigo_movimento,
-          codigo_caixa: caixaAberto.codigo_caixa,
-          tipo_movimentacao: "entrada",
-          valor: pagamento.valor_pagamento,
-          meio_pagamento: pagamento.meio_pagamento,
-          documento_origem: codigo_os,
-          origem: "os",
-          categoria_contabil: "receita",
-          historico: "alteração de OS",
-        });
-        await novaMovimentacao.save({ session });
+          codigo_produto: item.codigo_produto,
+        }).session(session);
+
+        if (!produto) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            message: `Produto não encontrado: ${item.codigo_produto}`,
+          });
+        }
+
+        const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+
+        if (configuracaoEstoque === "SIM") {
+          if (produto.estoque[0].estoque < item.quantidade) {
+            await session.abortTransaction();
+            return res.status(400).json({
+              message: `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`,
+            });
+          }
+          produto.estoque[0].estoque -= item.quantidade;
+        } else if (configuracaoEstoque === "PERMITE_NEGATIVO") {
+          produto.estoque[0].estoque -= item.quantidade;
+        }
+
+        if (configuracaoEstoque !== "NAO") {
+          await produto.save({ session });
+        }
       }
 
-      if (parcelas?.length) {
+      if (forma_pagamento && forma_pagamento.length > 0) {
+        for (const pagamento of forma_pagamento) {
+          const novaMovimentacao = new Movimentacao({
+            codigo_loja,
+            codigo_empresa,
+            caixaId: caixaAberto._id,
+            caixa: caixaAberto.caixa,
+            codigo_movimento,
+            codigo_caixa: caixaAberto.codigo_caixa,
+            tipo_movimentacao: "entrada",
+            valor: pagamento.valor_pagamento,
+            meio_pagamento: pagamento.meio_pagamento,
+            documento_origem: String(codigo_os),
+            origem: "os",
+            categoria_contabil: "1.1.1",
+            historico: "Alteração de OS",
+          });
+          await novaMovimentacao.save({ session });
+        }
+      }
+
+      if (parcelas && parcelas.length > 0) {
         for (let i = 0; i < parcelas.length; i++) {
           const parcela = parcelas[i];
+          
+          if (!parcela.valor_total || parcela.valor_total <= 0) {
+            await session.abortTransaction();
+            return res.status(400).json({
+              message: `Valor total inválido na parcela ${i + 1}`,
+            });
+          }
+
           const novaParcela = new Receber({
             codigo_loja,
             codigo_empresa,
@@ -484,6 +539,7 @@ exports.updateOs = async (req, res) => {
             valor_total: parcela.valor_total,
             status: "aberto",
             data_vencimento: parcela.data_vencimento,
+            observacao: parcela.observacao,
             fatura: `${i + 1}/${parcelas.length}`,
           });
           await novaParcela.save({ session });
@@ -491,17 +547,11 @@ exports.updateOs = async (req, res) => {
       }
     }
 
-    // Atualiza campos da OS
     osExistente.cliente = cliente || osExistente.cliente;
-    osExistente.cliente_sem_cadastro =
-      cliente_sem_cadastro || osExistente.cliente_sem_cadastro;
+    osExistente.cliente_sem_cadastro = cliente_sem_cadastro || osExistente.cliente_sem_cadastro;
     osExistente.status = status || osExistente.status;
-    osExistente.dataAbertura = dataAbertura
-      ? new Date(dataAbertura)
-      : osExistente.dataAbertura;
-    osExistente.dataFechamento = dataFechamento
-      ? new Date(dataFechamento)
-      : osExistente.dataFechamento;
+    osExistente.dataAbertura = dataAbertura ? new Date(dataAbertura) : osExistente.dataAbertura;
+    osExistente.dataFechamento = dataFechamento ? new Date(dataFechamento) : osExistente.dataFechamento;
     osExistente.responsavel = responsavel || osExistente.responsavel;
     osExistente.telefone = telefone || osExistente.telefone;
     osExistente.email = email || osExistente.email;
@@ -513,14 +563,13 @@ exports.updateOs = async (req, res) => {
     osExistente.observacaoVeiculo = observacaoVeiculo || osExistente.observacaoVeiculo;
     osExistente.itens = itens || osExistente.itens;
     osExistente.servicos = servicos || osExistente.servicos;
-    osExistente.forma_pagamento =
-      forma_pagamento || osExistente.forma_pagamento;
+    osExistente.forma_pagamento = forma_pagamento || osExistente.forma_pagamento;
     osExistente.parcelas = parcelas || osExistente.parcelas;
     osExistente.observacaoGeral = observacaoGeral || osExistente.observacaoGeral;
 
     await osExistente.save({ session });
     await session.commitTransaction();
-
+    
     return res.status(200).json({
       message: "Ordem de Serviço atualizada com sucesso.",
       os: osExistente,

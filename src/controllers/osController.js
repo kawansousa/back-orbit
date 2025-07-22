@@ -183,6 +183,7 @@ exports.createOs = async (req, res) => {
       servicos,
       forma_pagamento,
       observacaoGeral,
+      parcelas,
     });
 
     if (status === "faturado") {
@@ -591,6 +592,7 @@ exports.updateOs = async (req, res) => {
     osExistente.itens = itens || osExistente.itens;
     osExistente.servicos = servicos || osExistente.servicos;
     osExistente.forma_pagamento = forma_pagamento || osExistente.forma_pagamento;
+    osExistente.parcelas = parcelas || osExistente.parcelas;
     osExistente.observacaoGeral = observacaoGeral || osExistente.observacaoGeral;
 
     await osExistente.save({ session });

@@ -124,11 +124,6 @@ const parcelasOsSchema = new mongoose.Schema(
     valor_total: {
       type: Number,
     },
-    descricao: {
-      type: String,
-      default: 0,
-      default: "",
-    },
     data_vencimento: {
       type: Date,
     },

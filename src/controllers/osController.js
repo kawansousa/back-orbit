@@ -134,7 +134,7 @@ exports.createOs = async (req, res) => {
       itens,
       servicos,
       forma_pagamento,
-      parcelas, 
+      parcelas,
       codigo_movimento,
       observacaoGeral,
     } = req.body;
@@ -613,16 +613,17 @@ exports.updateOs = async (req, res) => {
 
 exports.cancelarOs = async (req, res) => {
   const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { codigo_loja, codigo_empresa, codigo_os } = req.body;
+    const { codigo_loja, codigo_empresa, codigo_os, codigo_movimento } = req.body;
 
     if (!codigo_loja || !codigo_empresa || !codigo_os) {
+      await session.abortTransaction();
       return res.status(400).json({
         error: "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
       });
     }
-
-    session.startTransaction();
 
     const os = await Os.findOne({
       codigo_os,
@@ -637,58 +638,127 @@ exports.cancelarOs = async (req, res) => {
       });
     }
 
-    if (os.status === "faturado") {
-      for (const item of os.itens) {
-        const produto = await Produto.findOne({
-          codigo_loja,
-          codigo_empresa,
-          codigo_produto: item.codigo_produto,
-        }).session(session);
-
-        if (produto) {
-          const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
-          if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
-            produto.estoque[0].estoque += item.quantidade;
-            await produto.save({ session });
-          }
-        }
-      }
-
-      await Receber.deleteMany({
-        $or: [
-          { documento_origem: String(codigo_os) },
-          { documento_origem: Number(codigo_os) },
-          { documento_origem: codigo_os }
-        ],
-        origem: "os",
-        codigo_loja,
-        codigo_empresa,
-      }).session(session);
-
-      await Movimentacao.deleteMany({
-        $or: [
-          { documento_origem: String(codigo_os) },
-          { documento_origem: Number(codigo_os) },
-          { documento_origem: codigo_os }
-        ],
-        origem: "os",
-        codigo_loja,
-        codigo_empresa,
-      }).session(session);
+    if (os.status === "cancelada") {
+      await session.abortTransaction();
+      return res.status(400).json({
+        error: "A ordem de serviço já está cancelada.",
+      });
     }
 
+    for (const item of os.itens) {
+      const produto = await Produto.findOne({
+        codigo_loja,
+        codigo_empresa,
+        codigo_produto: item.codigo_produto,
+      }).session(session);
+
+      if (produto) {
+        const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+        if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
+          produto.estoque[0].estoque += item.quantidade;
+          await produto.save({ session });
+        }
+      }
+    }
+
+    if (os.parcelas && os.parcelas.length > 0) {
+      await Receber.updateMany(
+        {
+          $or: [
+            { documento_origem: String(os.codigo_os) },
+            { documento_origem: Number(os.codigo_os) },
+            { documento_origem: os.codigo_os }
+          ],
+          origem: "os",
+          status: "aberto",
+          codigo_loja,
+          codigo_empresa,
+        },
+        { 
+          status: "cancelado",
+          data_cancelamento: new Date(),
+          observacao_cancelamento: "OS cancelada"
+        },
+        { session }
+      );
+    }
+
+    const movimentacoes = await Movimentacao.find({
+      $or: [
+        { documento_origem: String(os.codigo_os) },
+        { documento_origem: Number(os.codigo_os) },
+        { documento_origem: os.codigo_os }
+      ],
+      codigo_loja,
+      codigo_empresa,
+      origem: "os",
+    }).session(session);
+
+    console.log(movimentacoes);
+
+    const caixaAtual = await Caixa.findOne({
+      codigo_loja: os.codigo_loja,
+      codigo_empresa: os.codigo_empresa,
+      status: "aberto",
+    }).session(session);
+
+    console.log(caixaAtual);
+
+    if (!caixaAtual) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        message: "Nenhum caixa aberto encontrado para realizar o cancelamento" 
+      });
+    }
+
+    for (const movimentacao of movimentacoes) {
+      if (movimentacao.caixaId.toString() !== caixaAtual._id.toString()) {
+        const novaMovimentacao = new Movimentacao({
+          codigo_loja: os.codigo_loja,
+          codigo_empresa: os.codigo_empresa,
+          codigo_movimento: codigo_movimento || Date.now(),
+          caixaId: caixaAtual._id,
+          caixa: caixaAtual.caixa,
+          codigo_caixa: caixaAtual.codigo_caixa,
+          tipo_movimentacao: "saida",
+          valor: movimentacao.valor,
+          meio_pagamento: movimentacao.meio_pagamento,
+          documento_origem: os.codigo_os,
+          origem: "os",
+          categoria_contabil: "estorno",
+          historico: "Cancelamento de OS",
+        });
+
+        await novaMovimentacao.save({ session });
+      } else {
+        movimentacao.tipo_movimentacao = "saida";
+        movimentacao.categoria_contabil = "estorno";
+        movimentacao.historico = "Cancelamento de OS";
+        await movimentacao.save({ session });
+      }
+    }
 
     os.status = "cancelada";
     await os.save({ session });
 
+    if (movimentacoes.length > 0) {
+      caixaAtual.saldo -= movimentacoes.reduce(
+        (total, mov) => total + mov.valor,
+        0
+      );
+      await caixaAtual.save({ session });
+    }
+
     await session.commitTransaction();
 
-    res.status(200).json({
-      message: "Status da ordem de serviço atualizada para cancelada e estoque revertido.",
-      servico: os,
+    res.status(200).json({ 
+      message: "Ordem de serviço cancelada com sucesso",
+      os: os
     });
+
   } catch (error) {
     await session.abortTransaction();
+    console.error("Erro ao cancelar OS:", error);
     res.status(500).json({ error: error.message });
   } finally {
     session.endSession();
@@ -696,81 +766,81 @@ exports.cancelarOs = async (req, res) => {
 };
 
 
-exports.generateOsPDF = async (req, res) => {
-  try {
-    const { codigo_loja, codigo_empresa } = req.query;
+  exports.generateOsPDF = async (req, res) => {
+    try {
+      const { codigo_loja, codigo_empresa } = req.query;
 
-    if (!codigo_loja || !codigo_empresa) {
-      console.error("Faltando codigo_loja ou codigo_empresa");
-      return res.status(400).json({
-        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      if (!codigo_loja || !codigo_empresa) {
+        console.error("Faltando codigo_loja ou codigo_empresa");
+        return res.status(400).json({
+          error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+        });
+      }
+
+      const loja = await Loja.findOne({
+        codigo_loja,
+        "empresas.codigo_empresa": codigo_empresa,
       });
-    }
 
-    const loja = await Loja.findOne({
-      codigo_loja,
-      "empresas.codigo_empresa": codigo_empresa,
-    });
+      if (!loja) {
+        console.error("Loja não encontrada");
+        return res.status(404).json({
+          error: "Loja não encontrada.",
+        });
+      }
 
-    if (!loja) {
-      console.error("Loja não encontrada");
-      return res.status(404).json({
-        error: "Loja não encontrada.",
+      const os = await Os.findOne({
+        codigo_os: req.params.id,
+        codigo_loja,
+        codigo_empresa,
+      }).populate("cliente", "nome cpf");
+
+      if (!os) {
+        console.error("Venda não encontrada");
+        return res.status(404).json({
+          error: "Venda não encontrada.",
+        });
+      }
+
+      // Find the logo for the specific empresa
+      const empresa = loja.empresas.find(
+        (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
+      );
+      const logo = empresa ? empresa.logo : null;
+      const rodape = empresa ? empresa.rodape : null;
+
+      const templatePath = path.join(__dirname, "../views/os.ejs");
+      const html = await ejs.renderFile(templatePath, {
+        os,
+        logo,
+        rodape,
       });
-    }
 
-    const os = await Os.findOne({
-      codigo_os: req.params.id,
-      codigo_loja,
-      codigo_empresa,
-    }).populate("cliente", "nome cpf");
-
-    if (!os) {
-      console.error("Venda não encontrada");
-      return res.status(404).json({
-        error: "Venda não encontrada.",
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: "domcontentloaded" });
+
+      const pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        margin: {
+          top: "20px",
+          right: "20px",
+          bottom: "20px",
+          left: "20px",
+        },
+        preferCSSPageSize: true,
+      });
+
+      await browser.close();
+
+      res.setHeader("Content-Disposition", "attachment; filename=venda.pdf");
+      res.end(pdfBuffer);
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      res.status(500).json({ error: error.message });
     }
-
-    // Find the logo for the specific empresa
-    const empresa = loja.empresas.find(
-      (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
-    );
-    const logo = empresa ? empresa.logo : null;
-    const rodape = empresa ? empresa.rodape : null;
-
-    const templatePath = path.join(__dirname, "../views/os.ejs");
-    const html = await ejs.renderFile(templatePath, {
-      os,
-      logo,
-      rodape,
-    });
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "domcontentloaded" });
-
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "20px",
-        right: "20px",
-        bottom: "20px",
-        left: "20px",
-      },
-      preferCSSPageSize: true,
-    });
-
-    await browser.close();
-
-    res.setHeader("Content-Disposition", "attachment; filename=venda.pdf");
-    res.end(pdfBuffer);
-  } catch (error) {
-    console.error("Erro ao gerar PDF:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
+  };

@@ -653,7 +653,30 @@ exports.cancelarOs = async (req, res) => {
           }
         }
       }
+
+      await Receber.deleteMany({
+        $or: [
+          { documento_origem: String(codigo_os) },
+          { documento_origem: Number(codigo_os) },
+          { documento_origem: codigo_os }
+        ],
+        origem: "os",
+        codigo_loja,
+        codigo_empresa,
+      }).session(session);
+
+      await Movimentacao.deleteMany({
+        $or: [
+          { documento_origem: String(codigo_os) },
+          { documento_origem: Number(codigo_os) },
+          { documento_origem: codigo_os }
+        ],
+        origem: "os",
+        codigo_loja,
+        codigo_empresa,
+      }).session(session);
     }
+
 
     os.status = "cancelada";
     await os.save({ session });

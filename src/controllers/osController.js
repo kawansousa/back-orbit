@@ -612,37 +612,66 @@ exports.updateOs = async (req, res) => {
 };
 
 exports.cancelarOs = async (req, res) => {
-  const { codigo_loja, codigo_empresa, codigo_os } = req.body;
-
+  const session = await mongoose.startSession();
   try {
+    const { codigo_loja, codigo_empresa, codigo_os } = req.body;
+
     if (!codigo_loja || !codigo_empresa || !codigo_os) {
       return res.status(400).json({
-        error:
-          "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
+        error: "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
       });
     }
 
-    const updatedOs = await Os.findOneAndUpdate(
-      { codigo_os, codigo_loja, codigo_empresa },
-      { status: "cancelada" },
-      { new: true }
-    );
+    session.startTransaction();
 
-    if (!updatedOs) {
+    const os = await Os.findOne({
+      codigo_os,
+      codigo_loja,
+      codigo_empresa,
+    }).session(session);
+
+    if (!os) {
+      await session.abortTransaction();
       return res.status(404).json({
-        error: "A ordem de serviço não foi encontrado nessa loja e empresa.",
+        error: "A ordem de serviço não foi encontrada nessa loja e empresa.",
       });
     }
+
+    if (os.status === "faturado") {
+      for (const item of os.itens) {
+        const produto = await Produto.findOne({
+          codigo_loja,
+          codigo_empresa,
+          codigo_produto: item.codigo_produto,
+        }).session(session);
+
+        if (produto) {
+          const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+          if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
+            produto.estoque[0].estoque += item.quantidade;
+            await produto.save({ session });
+          }
+        }
+      }
+    }
+
+    os.status = "cancelada";
+    await os.save({ session });
+
+    await session.commitTransaction();
 
     res.status(200).json({
-      message: "Status da ordem de serviço atualizada para cancelada",
-      servico: updatedOs,
+      message: "Status da ordem de serviço atualizada para cancelada e estoque revertido.",
+      servico: os,
     });
   } catch (error) {
+    await session.abortTransaction();
     res.status(500).json({ error: error.message });
+  } finally {
+    session.endSession();
   }
-
 };
+
 
 exports.generateOsPDF = async (req, res) => {
   try {

@@ -232,3 +232,43 @@ exports.listarCaixas = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.listarTodosCaixas = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, page = 1, limit = 20, searchTerm = '' } = req.query;
+
+    const searchQuery = {
+      codigo_loja,
+      codigo_empresa,
+    };
+
+    if (searchTerm && searchTerm.trim() !== '') {
+      searchQuery.$or = [
+        { responsavel_abertura: { $regex: searchTerm, $options: 'i' } },
+        { responsavel_fechamento: { $regex: searchTerm, $options: 'i' } },
+        { codigo_caixa: { $regex: searchTerm, $options: 'i' } },
+        { caixa: parseInt(searchTerm) || 0 }
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const caixas = await Caixa.find(searchQuery)
+      .sort({ data_abertura: -1, codigo_caixa: -1 }) 
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Caixa.countDocuments(searchQuery);
+
+    res.status(200).json({
+      data: caixas,
+      total: total,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      hasNextPage: skip + caixas.length < total,
+      hasPrevPage: parseInt(page) > 1
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

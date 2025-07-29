@@ -107,8 +107,11 @@ exports.getEntradas = async (req, res) => {
     // Filtros de busca
     const filtros = { codigo_loja, codigo_empresa };
 
-    // Consulta com paginação
-    const entradas = await Entrada.find(filtros).skip(skip).limit(limitNumber);
+    const entradas = await Entrada.find(filtros)
+      .populate('fornecedor', 'razao_social nome_fantasia') 
+      .skip(skip)
+      .limit(limitNumber);
+      
     const totalEntradas = await Entrada.countDocuments(filtros);
 
     if (entradas.length === 0) {

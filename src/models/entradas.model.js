@@ -1,18 +1,38 @@
 const mongoose = require('mongoose');
 
-const itensEntradasShemas = new mongoose.Schema({
+const pagamentoSchema = new mongoose.Schema({
+  meio_pagamento: {
+      type: String,
+      enum: [
+        "dinheiro",
+        "cartao_credito",
+        "cartao_debito",
+        "pix",
+        "boleto",
+        "transferencia",
+        "aprazo",
+      ],
+    },
+    valor_pagamento: {
+      type: Number,
+    },
+  },
+  { _id: false }
+);
+
+const itensEntradasSchema = new mongoose.Schema({
   codigo_produto: {
     type: Number,
-    required: true
+    required: true,
   },
   descricao: {
     type: String,
-    required: true
+    required: true,
   },
   quantidade: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
   },
   referencia: {
     type: String,
@@ -46,11 +66,10 @@ const itensEntradasShemas = new mongoose.Schema({
       type: Number,
       required: true,
       min: 0,
-    }
-  }
-})
+    },
+  },
+});
 
-// Schema de Enquete
 const entradaSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
@@ -68,6 +87,7 @@ const entradaSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  forma_pagamento: [pagamentoSchema],
   status: {
     type: String,
     enum: ['ativo', 'inativo'],
@@ -79,9 +99,9 @@ const entradaSchema = new mongoose.Schema({
   fornecedor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Fornecedor',
-    required: true
+    required: true,
   },
-  itens: [itensEntradasShemas],
+  itens: [itensEntradasSchema],
   encargos: {
     cest: {
       type: Number,
@@ -106,7 +126,5 @@ const entradaSchema = new mongoose.Schema({
   },
 });
 
-
 const Entrada = mongoose.model('Entrada', entradaSchema);
-
 module.exports = Entrada;

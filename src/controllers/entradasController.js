@@ -16,7 +16,6 @@ exports.createEntrada = async (req, res) => {
       encargos,
     } = req.body;
 
-    // Validação de campos obrigatórios
     if (
       !codigo_loja || !codigo_empresa || !codigo_entrada || !entrada ||
       !fornecedor || !itens || !forma_pagamento
@@ -36,7 +35,6 @@ exports.createEntrada = async (req, res) => {
       }
     }
 
-    // Criar nova entrada
     const newEntrada = new Entrada({
       codigo_loja,
       codigo_empresa,
@@ -50,7 +48,6 @@ exports.createEntrada = async (req, res) => {
       encargos,
     });
 
-    // Atualizar estoque e dados dos produtos
     for (const item of itens) {
       const produto = await Produto.findOne({
         codigo_produto: item.codigo_produto,
@@ -145,7 +142,8 @@ exports.getEntradaById = async (req, res) => {
       return res.status(400).json({ error: 'codigo_loja e codigo_empresa são obrigatórios.' });
     }
 
-    const entrada = await Entrada.findOne({ _id: id, codigo_loja, codigo_empresa });
+    const entrada = await Entrada.findOne({ _id: id, codigo_loja, codigo_empresa })
+      .populate('fornecedor', 'razao_social nome_fantasia');
 
     if (!entrada) {
       return res.status(404).json({ error: 'Entrada não encontrada para essa loja e empresa.' });
@@ -160,8 +158,15 @@ exports.getEntradaById = async (req, res) => {
 exports.updateEntrada = async (req, res) => {
   try {
     const { id } = req.params;
-    const { codigo_loja, codigo_empresa } = req.query;
-    const { itens, forma_pagamento } = req.body;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      fornecedor,
+      numero_nota_fiscal,
+      itens,
+      forma_pagamento,
+      encargos
+    } = req.body;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({ error: 'codigo_loja e codigo_empresa são obrigatórios.' });
@@ -177,18 +182,48 @@ exports.updateEntrada = async (req, res) => {
       }
     }
 
-    const updatedEntrada = await Entrada.findOneAndUpdate(
-      { _id: id, codigo_loja, codigo_empresa },
-      req.body,
-      { new: true }
-    );
-
-    if (!updatedEntrada) {
+    const entradaAntiga = await Entrada.findOne({ _id: id, codigo_loja, codigo_empresa });
+    
+    if (!entradaAntiga) {
       return res.status(404).json({ error: 'Entrada não encontrada para essa loja e empresa.' });
     }
 
-    // Atualização de estoque (caso seja necessário com novos itens)
-    if (itens) {
+    const updateData = {
+      fornecedor,
+      numero_nota_fiscal,
+      itens,
+      forma_pagamento,
+      encargos,
+      updated_at: new Date()
+    };
+
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    const updatedEntrada = await Entrada.findOneAndUpdate(
+      { _id: id, codigo_loja, codigo_empresa },
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('fornecedor', 'razao_social nome_fantasia');
+
+    if (itens && Array.isArray(itens)) {
+      for (const itemAntigo of entradaAntiga.itens) {
+        const produto = await Produto.findOne({
+          codigo_produto: itemAntigo.codigo_produto,
+          codigo_loja,
+          codigo_empresa,
+        });
+
+        if (produto) {
+          const quantidadeAnterior = Number(itemAntigo.quantidade) || 0;
+          produto.estoque[0].estoque -= quantidadeAnterior;
+          await produto.save();
+        }
+      }
+
       for (const item of itens) {
         const produto = await Produto.findOne({
           codigo_produto: item.codigo_produto,
@@ -197,14 +232,44 @@ exports.updateEntrada = async (req, res) => {
         });
 
         if (produto) {
-          produto.estoque[0].estoque += Number(item.quantidade) || 0;
+          const quantidadeNova = Number(item.quantidade) || 0;
+          produto.estoque[0].estoque += quantidadeNova;
+
+          produto.precos = [{
+            preco_compra: item.precos.preco_compra,
+            cma: item.precos.cma,
+            preco_venda: item.precos.preco_venda,
+            preco_atacado: item.precos.preco_atacado,
+            ultimos_precos: {
+              ultimo_preco_compra: produto.precos[0]?.preco_compra || 0,
+              ultimo_cma: produto.precos[0]?.cma || 0,
+              ultimo_preco_venda: produto.precos[0]?.preco_venda || 0,
+              ultimo_preco_atacado: produto.precos[0]?.preco_atacado || 0,
+            },
+          }];
+
+          if (encargos) {
+            produto.encargos = [{
+              ncm: item.ncm || produto.encargos[0]?.ncm,
+              cest: encargos.cest || produto.encargos[0]?.cest || 0,
+              icms: encargos.icms || produto.encargos[0]?.icms || 0,
+              ipi: encargos.ipi || produto.encargos[0]?.ipi || 0,
+              pis: encargos.pis || produto.encargos[0]?.pis || 0,
+              cofins: encargos.cofins || produto.encargos[0]?.cofins || 0,
+            }];
+          }
+
           await produto.save();
         }
       }
     }
 
-    res.status(200).json({ message: 'Entrada atualizada', entrada: updatedEntrada });
+    res.status(200).json({ 
+      message: 'Entrada atualizada com sucesso', 
+      entrada: updatedEntrada 
+    });
   } catch (error) {
+    console.error('Erro ao atualizar entrada:', error);
     res.status(500).json({ error: error.message });
   }
 };

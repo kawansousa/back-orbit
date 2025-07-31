@@ -124,6 +124,9 @@ const entradaSchema = new mongoose.Schema({
       default: 0,
     },
   },
+}, {
+  id: false,
+  timestamps: true
 });
 
 const Entrada = mongoose.model('Entrada', entradaSchema);

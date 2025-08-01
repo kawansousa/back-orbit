@@ -324,7 +324,9 @@ exports.importProdutosFromExcel = async (req, res) => {
             preco_compra: parseFloat(linha[21]),
             cma: parseFloat(linha[22]),
             preco_venda: parseFloat(linha[24]),
-            preco_atacado: parseFloat(linha[25]),
+            lucro_venda: parseFloat(linha[25]),
+            preco_atacado: parseFloat(linha[26]),
+            lucro_atacado: parseFloat(linha[27]),
             ultimos_precos: {
               ultimo_preco_compra: 0,
               ultimo_cma: 0,

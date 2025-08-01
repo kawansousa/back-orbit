@@ -16,8 +16,17 @@ const precosShemas = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0,
+  },lucro_venda: {
+    type: Number,
+    required: true,
+    min: 0,
   },
   preco_atacado: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  lucro_atacado: {
     type: Number,
     required: true,
     min: 0,

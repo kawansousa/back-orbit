@@ -9,5 +9,6 @@ router.get('/orcamentos', orcamentosController.getOrcamentos);
 router.get('/orcamento/:id', orcamentosController.getOrcamentoById);
 router.put('/orcamento/:id', orcamentosController.updateOrcamento);
 router.get('/orcamentos/:id/pdf', orcamentosController.generateOrcamentoPDF);
+router.put('/orcamentos/:id/status', orcamentosController.updateOrcamentoStatus);
 
 module.exports = router;

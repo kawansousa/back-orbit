@@ -449,3 +449,58 @@ exports.generateOrcamentoPDF = async (req, res) => {
   }
 
 }
+
+exports.updateOrcamentoStatus = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, status } = req.body;
+    const usuario = req.body.usuario || 'Sistema';
+
+    if (!codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+      });
+    }
+
+    if (!status) {
+      return res.status(400).json({
+        error: 'O campo status é obrigatório.'
+      });
+    }
+
+    const orcamento = await Orcamento.findOne({
+      _id: req.params.id,
+      codigo_loja,
+      codigo_empresa,
+    });
+
+    if (!orcamento) {
+      return res.status(404).json({
+        error: 'Orçamento não encontrado.'
+      });
+    }
+    if (orcamento.status === 'aberto' && status === 'transformado_pedido') {
+      orcamento.historico.push({
+        status_anterior: orcamento.status,
+        status_novo: status,
+        usuario,
+        data_alteracao: new Date()
+      });
+      orcamento.status = status;
+      
+      await orcamento.save();
+
+      res.status(200).json({
+        message: 'Status do orçamento atualizado com sucesso',
+        orcamento
+      });
+    } else {
+      return res.status(400).json({
+        error: `Não é possível alterar o status de '${orcamento.status}' para '${status}'.`
+      });
+    }
+
+  } catch (error) {
+    console.error('Erro ao atualizar status do orçamento:', error);
+    res.status(500).json({ error: error.message });
+  }
+};

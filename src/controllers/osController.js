@@ -10,6 +10,29 @@ const mongoose = require("mongoose");
 const Produto = require("../models/produtos.model");
 const Receber = require("../models/receber.model");
 
+const atualizarSaldoCaixa = (caixa, formasPagamento, operacao = 'adicionar') => {
+  let totalDinheiro = 0;
+
+  formasPagamento.forEach(pagamento => {
+    const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+    if (meioPagamento === 'dinheiro') {
+      totalDinheiro += parseFloat(pagamento.valor_pagamento);
+    }
+  });
+
+  if (totalDinheiro > 0) {
+    const saldoAnterior = caixa.saldo_final;
+
+    if (operacao === 'adicionar') {
+      caixa.saldo_final = parseFloat(saldoAnterior) + parseFloat(totalDinheiro);
+    } else if (operacao === 'subtrair') {
+      caixa.saldo_final = parseFloat(saldoAnterior) - parseFloat(totalDinheiro);
+    }
+  }
+
+  return totalDinheiro;
+};
+
 exports.listaOs = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
@@ -68,9 +91,7 @@ exports.listaOs = async (req, res) => {
       }
     }
 
-    // Log para debug
 
-    // Consulta ao banco de dados
     const lista = await Os.find(filtros)
       .skip(skip)
       .limit(limitNumber)
@@ -146,8 +167,9 @@ exports.createOs = async (req, res) => {
       });
     }
 
+    let caixa = null;
     if (status === "faturado") {
-      const caixa = await Caixa.findOne({
+      caixa = await Caixa.findOne({
         codigo_loja,
         codigo_empresa,
         status: "aberto",
@@ -187,11 +209,7 @@ exports.createOs = async (req, res) => {
     });
 
     if (status === "faturado") {
-      const caixa = await Caixa.findOne({
-        codigo_loja,
-        codigo_empresa,
-        status: "aberto",
-      }).session(session);
+      const totalDinheiroAdicionado = atualizarSaldoCaixa(caixa, forma_pagamento, 'adicionar');
 
       const movimentacoes = forma_pagamento.map(
         (pagamento) =>
@@ -274,6 +292,7 @@ exports.createOs = async (req, res) => {
 
       await Promise.all([
         ...movimentacoes.map((mov) => mov.save({ session })),
+        caixa.save({ session }), 
         novaOs.save({ session }),
         ...recebimentos.map((receb) => receb.save({ session })),
       ]);
@@ -286,6 +305,7 @@ exports.createOs = async (req, res) => {
     res.status(201).json({
       message: "Ordem de Serviço criada com sucesso",
       os: novaOs,
+      saldoCaixaAtualizado: caixa ? caixa.saldo_final : null
     });
 
   } catch (error) {
@@ -301,28 +321,24 @@ exports.getOsById = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;
 
-    // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Find client by ID, validating store and company
     const Os = await Os.findOne({
       _id: req.params.id,
       codigo_loja,
       codigo_empresa,
     });
 
-    // Check if client was found
     if (!Os) {
       return res.status(404).json({
         error: "Os não encontrado para essa loja e empresa.",
       });
     }
 
-    // Find the city based on the city code in the client's address
     const cidade = await Cidades.findOne({
       codigo: parseInt(Os.endereco.cidade, 10),
     });
@@ -331,7 +347,6 @@ exports.getOsById = async (req, res) => {
       Os.endereco.cidade = cidade.nome;
     }
 
-    // Return found client with city name
     res.status(200).json(Os);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -389,26 +404,27 @@ exports.updateOs = async (req, res) => {
       });
     }
 
+    let caixaAberto = null;
     if (status === "faturado") {
-      const caixa = await Caixa.findOne({
+      caixaAberto = await Caixa.findOne({
         codigo_loja,
         codigo_empresa,
         status: "aberto",
       }).session(session);
 
-      if (!caixa) {
+      if (!caixaAberto) {
         await session.abortTransaction();
         return res.status(400).json({
           message: "O caixa precisa estar aberto para faturar a ordem de serviço."
         });
       }
+    } else {
+      caixaAberto = await Caixa.findOne({
+        codigo_loja,
+        codigo_empresa,
+        status: "aberto",
+      }).session(session);
     }
-
-    const caixaAberto = await Caixa.findOne({
-      codigo_loja,
-      codigo_empresa,
-      status: "aberto",
-    }).session(session);
 
     if (osExistente.status === "faturado") {
       const todasMovimentacoes = await Movimentacao.find({
@@ -443,6 +459,9 @@ exports.updateOs = async (req, res) => {
             }
           }
         }
+
+        const formasPagamentoAntigas = osExistente.forma_pagamento || [];
+        const totalDinheiroRevertido = atualizarSaldoCaixa(caixaAberto, formasPagamentoAntigas, 'subtrair');
       }
 
       for (const item of osExistente.itens) {
@@ -519,6 +538,10 @@ exports.updateOs = async (req, res) => {
         }
       }
 
+      if (caixaAberto) {
+        const totalDinheiroAdicionado = atualizarSaldoCaixa(caixaAberto, forma_pagamento, 'adicionar');
+      }
+
       if (forma_pagamento && forma_pagamento.length > 0) {
         for (const pagamento of forma_pagamento) {
           const novaMovimentacao = new Movimentacao({
@@ -540,7 +563,6 @@ exports.updateOs = async (req, res) => {
         }
       }
 
-      // Processar parcelas separadamente na atualização
       if (parcelas && parcelas.length > 0) {
         for (let i = 0; i < parcelas.length; i++) {
           const parcela = parcelas[i];
@@ -596,11 +618,17 @@ exports.updateOs = async (req, res) => {
     osExistente.observacaoGeral = observacaoGeral || osExistente.observacaoGeral;
 
     await osExistente.save({ session });
+
+    if (caixaAberto) {
+      await caixaAberto.save({ session });
+    }
+
     await session.commitTransaction();
 
     return res.status(200).json({
       message: "Ordem de Serviço atualizada com sucesso.",
       os: osExistente,
+      saldoCaixaAtualizado: caixaAberto ? caixaAberto.saldo_final : null
     });
   } catch (error) {
     await session.abortTransaction();
@@ -674,7 +702,7 @@ exports.cancelarOs = async (req, res) => {
           codigo_loja,
           codigo_empresa,
         },
-        { 
+        {
           status: "cancelado",
           data_cancelamento: new Date(),
           observacao_cancelamento: "OS cancelada"
@@ -694,20 +722,16 @@ exports.cancelarOs = async (req, res) => {
       origem: "os",
     }).session(session);
 
-    console.log(movimentacoes);
-
     const caixaAtual = await Caixa.findOne({
       codigo_loja: os.codigo_loja,
       codigo_empresa: os.codigo_empresa,
       status: "aberto",
     }).session(session);
 
-    console.log(caixaAtual);
-
     if (!caixaAtual) {
       await session.abortTransaction();
-      return res.status(400).json({ 
-        message: "Nenhum caixa aberto encontrado para realizar o cancelamento" 
+      return res.status(400).json({
+        message: "Nenhum caixa aberto encontrado para realizar o cancelamento"
       });
     }
 
@@ -751,7 +775,7 @@ exports.cancelarOs = async (req, res) => {
 
     await session.commitTransaction();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: "Ordem de serviço cancelada com sucesso",
       os: os
     });
@@ -765,82 +789,80 @@ exports.cancelarOs = async (req, res) => {
   }
 };
 
+exports.generateOsPDF = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa } = req.query;
 
-  exports.generateOsPDF = async (req, res) => {
-    try {
-      const { codigo_loja, codigo_empresa } = req.query;
-
-      if (!codigo_loja || !codigo_empresa) {
-        console.error("Faltando codigo_loja ou codigo_empresa");
-        return res.status(400).json({
-          error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
-        });
-      }
-
-      const loja = await Loja.findOne({
-        codigo_loja,
-        "empresas.codigo_empresa": codigo_empresa,
+    if (!codigo_loja || !codigo_empresa) {
+      console.error("Faltando codigo_loja ou codigo_empresa");
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
-
-      if (!loja) {
-        console.error("Loja não encontrada");
-        return res.status(404).json({
-          error: "Loja não encontrada.",
-        });
-      }
-
-      const os = await Os.findOne({
-        codigo_os: req.params.id,
-        codigo_loja,
-        codigo_empresa,
-      }).populate("cliente", "nome cpf");
-
-      if (!os) {
-        console.error("Venda não encontrada");
-        return res.status(404).json({
-          error: "Venda não encontrada.",
-        });
-      }
-
-      // Find the logo for the specific empresa
-      const empresa = loja.empresas.find(
-        (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
-      );
-      const logo = empresa ? empresa.logo : null;
-      const rodape = empresa ? empresa.rodape : null;
-
-      const templatePath = path.join(__dirname, "../views/os.ejs");
-      const html = await ejs.renderFile(templatePath, {
-        os,
-        logo,
-        rodape,
-      });
-
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      });
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "domcontentloaded" });
-
-      const pdfBuffer = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: {
-          top: "20px",
-          right: "20px",
-          bottom: "20px",
-          left: "20px",
-        },
-        preferCSSPageSize: true,
-      });
-
-      await browser.close();
-
-      res.setHeader("Content-Disposition", "attachment; filename=venda.pdf");
-      res.end(pdfBuffer);
-    } catch (error) {
-      console.error("Erro ao gerar PDF:", error);
-      res.status(500).json({ error: error.message });
     }
-  };
+
+    const loja = await Loja.findOne({
+      codigo_loja,
+      "empresas.codigo_empresa": codigo_empresa,
+    });
+
+    if (!loja) {
+      console.error("Loja não encontrada");
+      return res.status(404).json({
+        error: "Loja não encontrada.",
+      });
+    }
+
+    const os = await Os.findOne({
+      codigo_os: req.params.id,
+      codigo_loja,
+      codigo_empresa,
+    }).populate("cliente", "nome cpf");
+
+    if (!os) {
+      console.error("Venda não encontrada");
+      return res.status(404).json({
+        error: "Venda não encontrada.",
+      });
+    }
+
+    const empresa = loja.empresas.find(
+      (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
+    );
+    const logo = empresa ? empresa.logo : null;
+    const rodape = empresa ? empresa.rodape : null;
+
+    const templatePath = path.join(__dirname, "../views/os.ejs");
+    const html = await ejs.renderFile(templatePath, {
+      os,
+      logo,
+      rodape,
+    });
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "20px",
+        right: "20px",
+        bottom: "20px",
+        left: "20px",
+      },
+      preferCSSPageSize: true,
+    });
+
+    await browser.close();
+
+    res.setHeader("Content-Disposition", "attachment; filename=venda.pdf");
+    res.end(pdfBuffer);
+  } catch (error) {
+    console.error("Erro ao gerar PDF:", error);
+    res.status(500).json({ error: error.message });
+  }
+};

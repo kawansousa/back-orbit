@@ -3,11 +3,34 @@ const Venda = require("../models/vendas.model");
 const Receber = require("../models/receber.model");
 const Movimentacao = require("../models/movimentacoes_caixa.model");
 const Caixa = require("../models/caixa.model");
-const Produto = require("../models/produtos.model"); // Import the Produto model
+const Produto = require("../models/produtos.model"); 
 const path = require("path");
 const ejs = require("ejs");
 const puppeteer = require("puppeteer");
 const Loja = require("../models/lojas.model");
+
+const atualizarSaldoCaixa = (caixa, formasPagamento, operacao = 'adicionar') => {
+  let totalDinheiro = 0;
+  
+  formasPagamento.forEach(pagamento => {
+    const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+    if (meioPagamento === 'dinheiro') {
+      totalDinheiro += parseFloat(pagamento.valor_pagamento);
+    }
+  });
+
+  if (totalDinheiro > 0) {
+    const saldoAnterior = caixa.saldo_final;
+    
+    if (operacao === 'adicionar') {
+      caixa.saldo_final = parseFloat(saldoAnterior) + parseFloat(totalDinheiro);
+    } else if (operacao === 'subtrair') {
+      caixa.saldo_final = parseFloat(saldoAnterior) - parseFloat(totalDinheiro);
+    }
+  }
+
+  return totalDinheiro;
+};
 
 exports.criarVenda = async (req, res) => {
   const session = await mongoose.startSession();
@@ -33,7 +56,6 @@ exports.criarVenda = async (req, res) => {
       origem,
     } = req.body;
 
-    // Validate required fields
     if (
       !codigo_loja ||
       !codigo_empresa ||
@@ -45,7 +67,6 @@ exports.criarVenda = async (req, res) => {
       throw new Error("Dados de venda inválidos");
     }
 
-    // Save sale
     const novaVenda = new Venda({
       codigo_loja,
       codigo_empresa,
@@ -64,7 +85,6 @@ exports.criarVenda = async (req, res) => {
       origem,
     });
 
-    // Handle cash register and payments
     const caixa = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
@@ -75,7 +95,6 @@ exports.criarVenda = async (req, res) => {
       throw new Error("Caixa não está aberto");
     }
 
-    // Register cash movements for each payment method
     const movimentacoes = forma_pagamento.map(
       (pagamento) =>
         new Movimentacao({
@@ -93,7 +112,20 @@ exports.criarVenda = async (req, res) => {
           categoria_contabil: "1.1.1",
         })
     );
-    console.log("Movimentações registradas:", movimentacoes);
+
+    let totalDinheiro = 0;
+    forma_pagamento.forEach(pagamento => {
+      const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+      
+      if (meioPagamento === 'dinheiro') {
+        totalDinheiro += parseFloat(pagamento.valor_pagamento);
+      }
+    });
+
+    if (totalDinheiro > 0) {
+      const saldoAnterior = caixa.saldo_final;
+      caixa.saldo_final = parseFloat(saldoAnterior) + parseFloat(totalDinheiro);
+    }
 
     const recebimentos = [];
 
@@ -125,7 +157,6 @@ exports.criarVenda = async (req, res) => {
       }
     }
 
-    // Save all documents within the transaction
     await Promise.all([
       ...movimentacoes.map((mov) => mov.save({ session })),
       caixa.save({ session }),
@@ -145,7 +176,7 @@ exports.criarVenda = async (req, res) => {
       }
 
       const configuracaoEstoque =
-        produto.configuracoes[0]?.controla_estoque || "SIM"; // Assume 'SIM' como padrão
+        produto.configuracoes[0]?.controla_estoque || "SIM";
 
       if (configuracaoEstoque === "SIM") {
         if (produto.estoque[0].estoque < item.quantidade) {
@@ -157,27 +188,27 @@ exports.criarVenda = async (req, res) => {
       } else if (configuracaoEstoque === "PERMITE_NEGATIVO") {
         produto.estoque[0].estoque -= item.quantidade;
       } else if (configuracaoEstoque === "NAO") {
-        // Se 'NAO', o estoque não é alterado
         continue;
       }
 
-      // Salvar o produto com o novo estoque
       await produto.save({ session });
     }
 
-    // Commit the transaction
     await session.commitTransaction();
 
-    res.status(201).json(novaVenda);
+    res.status(201).json({
+      venda: novaVenda,
+      saldoCaixaAtualizado: caixa.saldo_final,
+      totalDinheiroAdicionado: totalDinheiro,
+      message: 'Venda criada e caixa atualizado com sucesso'
+    });
+
   } catch (error) {
-    // Ensure transaction is aborted if an error occurs
     if (session.inTransaction()) {
       await session.abortTransaction();
     }
-    console.error(error);
     res.status(500).json({ error: error.message });
   } finally {
-    // Always end the session, regardless of success or failure
     session.endSession();
   }
 };
@@ -190,13 +221,11 @@ exports.cancelarVenda = async (req, res) => {
     const { codigo_venda, codigo_loja, codigo_empresa, codigo_movimento } =
       req.body;
 
-    // Validar se o código da venda foi enviado
     if (!codigo_venda) {
       await session.abortTransaction();
       return res.status(400).json({ message: "Código da venda não fornecido" });
     }
 
-    // Buscar a venda pelo código
     const venda = await Venda.findOne({
       codigo_venda,
       codigo_loja,
@@ -207,13 +236,11 @@ exports.cancelarVenda = async (req, res) => {
       return res.status(404).json({ message: "Venda não encontrada" });
     }
 
-    // Verificar se a venda já foi cancelada
     if (venda.status === "cancelado") {
       await session.abortTransaction();
       return res.status(400).json({ message: "Venda já foi cancelada" });
     }
 
-    // Reverter o estoque dos itens
     for (const item of venda.itens) {
       const produto = await Produto.findOne({
         codigo_loja,
@@ -227,7 +254,6 @@ exports.cancelarVenda = async (req, res) => {
       }
     }
 
-    // Cancelar contas a receber, se a venda for a prazo
     if (venda.tipo === "aprazo") {
       await Receber.updateMany(
         {
@@ -240,7 +266,6 @@ exports.cancelarVenda = async (req, res) => {
       );
     }
 
-    // Buscar movimentações do caixa associadas à venda
     const movimentacoes = await Movimentacao.find({
       documento_origem: venda.codigo_venda,
       codigo_loja,
@@ -248,16 +273,12 @@ exports.cancelarVenda = async (req, res) => {
       origem: "venda",
     }).session(session);
 
-    console.log(movimentacoes);
 
-    // Obter o caixa aberto atual
     const caixaAtual = await Caixa.findOne({
       codigo_loja: venda.codigo_loja,
       codigo_empresa: venda.codigo_empresa,
       status: "aberto",
     }).session(session);
-
-    console.log(caixaAtual);
 
     if (!caixaAtual) {
       await session.abortTransaction();
@@ -268,7 +289,6 @@ exports.cancelarVenda = async (req, res) => {
 
     for (const movimentacao of movimentacoes) {
       if (movimentacao.caixaId.toString() !== caixaAtual._id.toString()) {
-        // Criar um novo movimento de cancelamento no caixa aberto
         const novaMovimentacao = new Movimentacao({
           codigo_loja: venda.codigo_loja,
           codigo_empresa: venda.codigo_empresa,
@@ -288,7 +308,6 @@ exports.cancelarVenda = async (req, res) => {
 
         await novaMovimentacao.save({ session });
       } else {
-        // Atualizar a movimentação existente
         movimentacao.tipo_movimentacao = "saida";
         movimentacao.categoria_contabil = "estorno";
         movimentacao.historico = "Cancelamento de venda";
@@ -296,11 +315,9 @@ exports.cancelarVenda = async (req, res) => {
       }
     }
 
-    // Atualizar o status da venda para "cancelado"
     venda.status = "cancelado";
     await venda.save({ session });
 
-    // Ajustar o saldo do caixa
     caixaAtual.saldo -= movimentacoes.reduce(
       (total, mov) => total + mov.valor,
       0
@@ -341,7 +358,6 @@ exports.alterarVenda = async (req, res) => {
       origem,
     } = req.body;
 
-    // Buscar a venda original
     const venda = await Venda.findOne({
       codigo_venda,
       codigo_loja,
@@ -353,7 +369,6 @@ exports.alterarVenda = async (req, res) => {
       return res.status(404).json({ message: "Venda não encontrada" });
     }
 
-    // Verificar se a venda está associada ao mesmo caixa
     const caixaAberto = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
@@ -361,7 +376,7 @@ exports.alterarVenda = async (req, res) => {
     }).session(session);
 
     const movimentacoes = await Movimentacao.findOne({
-      documento_origem: String(venda.codigo_venda), // Convertendo para string
+      documento_origem: String(venda.codigo_venda),
       codigo_loja,
       codigo_empresa,
       origem: "venda",
@@ -377,7 +392,9 @@ exports.alterarVenda = async (req, res) => {
         .json({ message: "Alteração só é permitida no mesmo caixa." });
     }
 
-    // Reverter o estoque dos itens vendidos
+    const formasPagamentoAntigas = venda.forma_pagamento || [];
+    const totalDinheiroRevertido = atualizarSaldoCaixa(caixaAberto, formasPagamentoAntigas, 'subtrair');
+
     for (const item of venda.itens) {
       const produto = await Produto.findOne({
         codigo_loja,
@@ -386,12 +403,11 @@ exports.alterarVenda = async (req, res) => {
       }).session(session);
 
       if (produto) {
-        produto.estoque[0].estoque += item.quantidade; // Repor o estoque
+        produto.estoque[0].estoque += item.quantidade;
         await produto.save({ session });
       }
     }
 
-    // Excluir movimentações e contas a receber associadas à venda
     await Movimentacao.deleteMany({
       documento_origem: codigo_venda,
       origem: "venda",
@@ -406,7 +422,6 @@ exports.alterarVenda = async (req, res) => {
       codigo_empresa,
     }).session(session);
 
-    // Validar e ajustar o estoque para os novos itens
     for (const item of itens) {
       const produto = await Produto.findOne({
         codigo_loja,
@@ -421,12 +436,10 @@ exports.alterarVenda = async (req, res) => {
         });
       }
 
-      // Atualizar o estoque
       produto.estoque[0].estoque -= item.quantidade;
       await produto.save({ session });
     }
 
-    // Atualizar os dados da venda
     venda.cliente = cliente;
     venda.cliente_sem_cadastro = cliente_sem_cadastro;
     venda.vendedor = vendedor;
@@ -441,7 +454,8 @@ exports.alterarVenda = async (req, res) => {
 
     await venda.save({ session });
 
-    // Criar novas movimentações financeiras
+    const totalDinheiroAdicionado = atualizarSaldoCaixa(caixaAberto, forma_pagamento, 'adicionar');
+
     for (const pagamento of forma_pagamento) {
       const novaMovimentacao = new Movimentacao({
         codigo_loja,
@@ -452,7 +466,7 @@ exports.alterarVenda = async (req, res) => {
         codigo_caixa: caixaAberto.codigo_caixa,
         tipo_movimentacao: "entrada",
         valor: pagamento.valor_pagamento,
-        meio_pagamento: pagamento.meio_pagamento, // Aqui está o valor correto
+        meio_pagamento: pagamento.meio_pagamento,
         documento_origem: codigo_venda,
         origem: "venda",
         categoria_contabil: "receita",
@@ -462,7 +476,6 @@ exports.alterarVenda = async (req, res) => {
       await novaMovimentacao.save({ session });
     }
 
-    // Criar novas parcelas (caso venda seja a prazo)
     if (tipo === "aprazo" && parcelas) {
       for (const parcela of parcelas) {
         const novaParcela = new Receber({
@@ -481,10 +494,17 @@ exports.alterarVenda = async (req, res) => {
       }
     }
 
+    await caixaAberto.save({ session });
+
     await session.commitTransaction();
-    res.status(200).json({ message: "Venda alterada com sucesso" });
+
+    res.status(200).json({ 
+      message: "Venda alterada com sucesso",
+      saldoCaixaAtualizado: caixaAberto.saldo_final
+    });
   } catch (error) {
     await session.abortTransaction();
+    console.error('Erro ao alterar venda:', error);
     res.status(500).json({ error: error.message });
   } finally {
     session.endSession();
@@ -503,7 +523,6 @@ exports.listarVendas = async (req, res) => {
       dataFim,
     } = req.query;
 
-    // Validate required parameters
     if (!codigo_empresa) {
       return res.status(400).json({
         message: "Código da empresa é obrigatório",
@@ -516,7 +535,6 @@ exports.listarVendas = async (req, res) => {
       });
     }
 
-    // Validate page and limit
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
 
@@ -532,15 +550,13 @@ exports.listarVendas = async (req, res) => {
       });
     }
 
-    // Validate date range if provided
     const query = {
       codigo_empresa,
       codigo_loja,
     };
 
-    // Validate status if provided
     if (status) {
-      const validStatuses = ["pendente", "concluido", "cancelado"]; // Add your valid statuses
+      const validStatuses = ["pendente", "concluido", "cancelado"];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({
           message: "Status de venda inválido",
@@ -549,19 +565,16 @@ exports.listarVendas = async (req, res) => {
       query.status = status;
     }
 
-    // Date range validation
     if (dataInicio && dataFim) {
       const startDate = new Date(dataInicio);
       const endDate = new Date(dataFim);
 
-      // Validate date format
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.status(400).json({
           message: "Formato de data inválido",
         });
       }
 
-      // Ensure start date is before or equal to end date
       if (startDate > endDate) {
         return res.status(400).json({
           message: "Data de início deve ser anterior ou igual à data final",
@@ -576,7 +589,6 @@ exports.listarVendas = async (req, res) => {
 
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Fetch sales with pagination and populate
     const vendas = await Venda.find(query)
       .populate({
         path: "cliente",
@@ -585,7 +597,7 @@ exports.listarVendas = async (req, res) => {
       })
       .populate({
         path: "vendedor",
-        select: "name", // Assumindo que o campo de nome do vendedor seja 'name'
+        select: "name", 
         match: {
           acesso_loja: {
             $elemMatch: {
@@ -595,7 +607,7 @@ exports.listarVendas = async (req, res) => {
           },
         },
       })
-      .sort({ codigo_venda: -1, createdAt: -1 }) // Ordena primeiro por codigo_venda em ordem decrescente
+      .sort({ codigo_venda: -1, createdAt: -1 }) 
       .skip(skip)
       .limit(limitNumber)
       .lean();
@@ -622,28 +634,26 @@ exports.getVendaById = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;
 
-    // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Find client by ID, validating store and company
+    
     const venda = await Venda.findOne({
       _id: req.params.id,
       codigo_loja,
       codigo_empresa,
     });
 
-    // Check if client was found
+   
     if (!venda) {
       return res.status(404).json({
         error: "Cliente não encontrado para essa loja e empresa.",
       });
     }
 
-    // Return found client
     res.status(200).json(venda);
   } catch (error) {
     console.error("Erro ao listar vendas:", error);
@@ -690,7 +700,6 @@ exports.generateVendaPDF = async (req, res) => {
       });
     }
 
-    // Find the logo for the specific empresa
     const empresa = loja.empresas.find(
       (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
     );

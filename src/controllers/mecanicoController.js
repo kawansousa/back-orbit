@@ -1,4 +1,5 @@
 const Mecanico = require("../models/mecanico.model");
+const Os = require("../models/os.model");
 
 exports.listaMecanicos = async (req, res) => {
   try {
@@ -21,13 +22,11 @@ exports.listaMecanicos = async (req, res) => {
 
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Filtros obrigatórios
     const filtros = {
       codigo_loja,
       codigo_empresa,
     };
 
-    // Adiciona filtro de busca se searchTerm existir
     if (searchTerm) {
       if (searchType === 'todos') {
         filtros.$or = [
@@ -54,7 +53,7 @@ exports.listaMecanicos = async (req, res) => {
       data: mecanicos,
     });
   } catch (error) {
-    console.error("Erro ao listar mecânicos:", error); // Log para capturar erros
+    console.error("Erro ao listar mecânicos:", error); 
     res.status(500).json({ error: error.message });
   }
 };
@@ -108,28 +107,25 @@ exports.getMecanicosById = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa } = req.query;
 
-    // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Find client by ID, validating store and company
-    const Mecanico = await Mecanico.findOne({
+    const mecanico = await Mecanico.findOne({
       codigo_mecanico: req.params.id,
       codigo_loja,
       codigo_empresa,
     });
 
-    // Check if client was found
-    if (!Mecanico) {
+    if (!mecanico) {
       return res.status(404).json({
         error: "Mecanico não encontrado para essa loja e empresa.",
       });
     }
 
-    res.status(200).json(Mecanico);
+    res.status(200).json(mecanico);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -139,36 +135,30 @@ exports.updateMecanico = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa, nome, especialidade, telefone, comissao, status } = req.body;
 
-    // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Validate at least one field to update
     if (!nome && !especialidade && !telefone && comissao === undefined && !status) {
       return res.status(400).json({
         error: "Pelo menos um campo deve ser fornecido para atualização.",
       });
     }
 
-    // Validate nome if provided
     if (nome && nome.trim() === "") {
       return res.status(400).json({ error: "Nome não pode estar vazio" });
     }
 
-    // Validate especialidade if provided
     if (especialidade && especialidade.trim() === "") {
       return res.status(400).json({ error: "Especialidade não pode estar vazia" });
     }
 
-    // Validate comissao if provided
     if (comissao !== undefined && (isNaN(comissao) || comissao < 0 || comissao > 100)) {
       return res.status(400).json({ error: "Comissão deve estar entre 0 e 100" });
     }
 
-    // Build update object with only provided fields
     const updateData = {
       data_atualizacao: new Date(),
     };
@@ -179,21 +169,18 @@ exports.updateMecanico = async (req, res) => {
     if (comissao !== undefined) updateData.comissao = Number(comissao);
     if (status) updateData.status = status;
 
-    // Update mechanic, validating store and company
     const updatedMecanico = await Mecanico.findOneAndUpdate(
       { codigo_mecanico: req.params.id, codigo_loja, codigo_empresa },
       updateData,
       { new: true }
     );
 
-    // Check if mechanic was found and updated
     if (!updatedMecanico) {
       return res.status(404).json({
         error: "Mecânico não encontrado para essa loja e empresa.",
       });
     }
 
-    // Return updated mechanic
     res.status(200).json({
       message: "Mecânico atualizado com sucesso",
       mecanico: updatedMecanico,
@@ -208,7 +195,6 @@ exports.deleteMecanico = async (req, res) => {
   const { codigo_loja, codigo_empresa, codigo_mecanico } = req.body;
 
   try {
-    // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa || !codigo_mecanico) {
       return res.status(400).json({
         error:
@@ -216,26 +202,145 @@ exports.deleteMecanico = async (req, res) => {
       });
     }
 
-    // Update service status to "cancelado"
     const updatedMecanico = await Mecanico.findOneAndUpdate(
       { codigo_mecanico, codigo_loja, codigo_empresa },
       { status: "inativo" },
       { new: true }
     );
 
-    // Check if service was found and updated
     if (!updatedMecanico) {
       return res.status(404).json({
         error: "O Mecanico não foi encontrado nessa loja e empresa.",
       });
     }
 
-    // Return updated service
     res.status(200).json({
       message: "Status do mecânico atualizado para inativo",
-      servico: updatedMecanico,
+      mecanico: updatedMecanico,
     });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+exports.relatorioMecanicos = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, data_inicio, data_fim } = req.query;
+
+    if (!codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
+    }
+
+    const dataFim = data_fim ? new Date(data_fim) : new Date();
+    const dataInicio = data_inicio ? new Date(data_inicio) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    dataInicio.setHours(0, 0, 0, 0);
+    dataFim.setHours(23, 59, 59, 999);
+
+    const mecanicos = await Mecanico.find({
+      codigo_loja,
+      codigo_empresa,
+      status: "ativo"
+    });
+
+    const relatorio = await Promise.all(
+      mecanicos.map(async (mecanico) => {
+        const todasOs = await Os.find({
+          codigo_loja,
+          codigo_empresa,
+          status: "faturado",
+          dataAbertura: {
+            $gte: dataInicio,
+            $lte: dataFim
+          }
+        });
+
+        const osAtendidasPeloMecanico = [];
+        let valorTotalServicos = 0;
+        let quantidadeServicos = 0;
+
+        todasOs.forEach(os => {
+          if (os.servicos && os.servicos.length > 0) {
+            let mecanicoAtendeNessaOs = false;
+            
+            os.servicos.forEach(servico => {
+              if (servico.mecanico && Array.isArray(servico.mecanico)) {
+                const mecanicoEncontrado = servico.mecanico.find(m => 
+                  m.nome === mecanico.nome || m.codigo_mecanico === mecanico.codigo_mecanico
+                );
+                
+                if (mecanicoEncontrado) {
+                  mecanicoAtendeNessaOs = true;
+                  valorTotalServicos += servico.total_servico || 0;
+                  quantidadeServicos++;
+                }
+              }
+            });
+
+            if (mecanicoAtendeNessaOs) {
+              osAtendidasPeloMecanico.push(os);
+            }
+          }
+        });
+
+        const valorComissao = (valorTotalServicos * (mecanico.comissao || 0)) / 100;
+
+        return {
+          codigo_mecanico: mecanico.codigo_mecanico,
+          nome: mecanico.nome,
+          especialidade: mecanico.especialidade,
+          telefone: mecanico.telefone,
+          comissao_percentual: mecanico.comissao || 0,
+          quantidade_servicos: quantidadeServicos,
+          valor_total_servicos: valorTotalServicos,
+          valor_comissao: valorComissao,
+          os_detalhes: osAtendidasPeloMecanico.map(os => {
+            const servicosDoMecanico = os.servicos.filter(servico => 
+              servico.mecanico && Array.isArray(servico.mecanico) && 
+              servico.mecanico.find(m => m.nome === mecanico.nome || m.codigo_mecanico === mecanico.codigo_mecanico)
+            );
+
+            return {
+              codigo_os: os.codigo_os,
+              cliente: os.cliente?.nome || os.cliente_sem_cadastro?.nome || "Cliente não informado",
+              data_fechamento: os.dataFechamento || os.dataAbertura,
+              valor_total: servicosDoMecanico.reduce((sum, s) => sum + (s.total_servico || 0), 0) || 0,
+              servicos_realizados: servicosDoMecanico.map(servico => ({
+                codigo_servico: servico.codigo_servico,
+                descricao: servico.descricao,
+                quantidade: servico.quantidade,
+                valor_unitario: servico.preco,
+                valor_total: servico.total_servico
+              }))
+            };
+          })
+        };
+      })
+    );
+
+    relatorio.sort((a, b) => b.valor_comissao - a.valor_comissao);
+
+    const totaisGerais = {
+      total_mecanicos: relatorio.length,
+      total_servicos: relatorio.reduce((sum, m) => sum + m.quantidade_servicos, 0),
+      total_valor_servicos: relatorio.reduce((sum, m) => sum + m.valor_total_servicos, 0),
+      total_comissoes: relatorio.reduce((sum, m) => sum + m.valor_comissao, 0)
+    };
+
+    res.status(200).json({
+      periodo: {
+        data_inicio: dataInicio,
+        data_fim: dataFim
+      },
+      totais: totaisGerais,
+      mecanicos: relatorio
+    });
+
+  } catch (error) {
+    console.error("Erro ao gerar relatório de mecânicos:", error);
     res.status(500).json({ error: error.message });
   }
 };

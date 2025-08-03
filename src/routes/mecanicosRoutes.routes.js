@@ -9,5 +9,6 @@ router.get("/mecanicos", mecanicoController.listaMecanicos);
 router.get("/mecanico/:id", mecanicoController.getMecanicosById);
 router.put("/mecanico/:id", mecanicoController.updateMecanico);
 router.patch("/mecanico/", mecanicoController.deleteMecanico);
+router.get("/relatorio", mecanicoController.relatorioMecanicos);
 
 module.exports = router;

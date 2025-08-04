@@ -64,11 +64,15 @@ exports.createEntrada = async (req, res) => {
           cma: item.precos.cma,
           preco_venda: item.precos.preco_venda,
           preco_atacado: item.precos.preco_atacado,
+          lucro_venda: item.precos.lucro_venda,
+          lucro_atacado: item.precos.lucro_atacado,
           ultimos_precos: {
             ultimo_preco_compra: produto.precos[0]?.preco_compra || 0,
             ultimo_cma: produto.precos[0]?.cma || 0,
             ultimo_preco_venda: produto.precos[0]?.preco_venda || 0,
             ultimo_preco_atacado: produto.precos[0]?.preco_atacado || 0,
+            ultimo_lucro_venda: produto.precos[0]?.lucro_venda || 0,
+            ultimo_lucro_atacado: produto.precos[0]?.lucro_atacado || 0,
           },
         }];
 
@@ -183,7 +187,7 @@ exports.updateEntrada = async (req, res) => {
     }
 
     const entradaAntiga = await Entrada.findOne({ _id: id, codigo_loja, codigo_empresa });
-    
+
     if (!entradaAntiga) {
       return res.status(404).json({ error: 'Entrada não encontrada para essa loja e empresa.' });
     }
@@ -240,11 +244,15 @@ exports.updateEntrada = async (req, res) => {
             cma: item.precos.cma,
             preco_venda: item.precos.preco_venda,
             preco_atacado: item.precos.preco_atacado,
+            lucro_venda: item.precos.lucro_venda,
+            lucro_atacado: item.precos.lucro_atacado,
             ultimos_precos: {
               ultimo_preco_compra: produto.precos[0]?.preco_compra || 0,
               ultimo_cma: produto.precos[0]?.cma || 0,
               ultimo_preco_venda: produto.precos[0]?.preco_venda || 0,
               ultimo_preco_atacado: produto.precos[0]?.preco_atacado || 0,
+              ultimo_lucro_venda: produto.precos[0]?.lucro_venda || 0,
+              ultimo_lucro_atacado: produto.precos[0]?.lucro_atacado || 0,
             },
           }];
 
@@ -264,9 +272,9 @@ exports.updateEntrada = async (req, res) => {
       }
     }
 
-    res.status(200).json({ 
-      message: 'Entrada atualizada com sucesso', 
-      entrada: updatedEntrada 
+    res.status(200).json({
+      message: 'Entrada atualizada com sucesso',
+      entrada: updatedEntrada
     });
   } catch (error) {
     console.error('Erro ao atualizar entrada:', error);

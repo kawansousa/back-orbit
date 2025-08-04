@@ -2,21 +2,21 @@ const mongoose = require('mongoose');
 
 const pagamentoSchema = new mongoose.Schema({
   meio_pagamento: {
-      type: String,
-      enum: [
-        "dinheiro",
-        "cartao_credito",
-        "cartao_debito",
-        "pix",
-        "boleto",
-        "transferencia",
-        "aprazo",
-      ],
-    },
-    valor_pagamento: {
-      type: Number,
-    },
+    type: String,
+    enum: [
+      "dinheiro",
+      "cartao_credito",
+      "cartao_debito",
+      "pix",
+      "boleto",
+      "transferencia",
+      "aprazo",
+    ],
   },
+  valor_pagamento: {
+    type: Number,
+  },
+},
   { _id: false }
 );
 
@@ -66,6 +66,16 @@ const itensEntradasSchema = new mongoose.Schema({
       type: Number,
       required: true,
       min: 0,
+    },
+    lucro_venda: {
+      type: Number,
+      require: true,
+      min: 0.
+    },
+    lucro_atacado: {
+      type: Number,
+      require: true,
+      min: 0.
     },
   },
 });

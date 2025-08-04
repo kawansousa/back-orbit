@@ -60,7 +60,7 @@ const orcamentoSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['aberto', 'cancelado', 'cancelado', 'transformado_pedido'],
+    enum: ['aberto', 'cancelado', 'cancelado', 'convertido'],
     default: 'aberto'
   },
   cliente: {

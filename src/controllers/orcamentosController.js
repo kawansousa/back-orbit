@@ -478,7 +478,7 @@ exports.updateOrcamentoStatus = async (req, res) => {
         error: 'Orçamento não encontrado.'
       });
     }
-    if (orcamento.status === 'aberto' && status === 'transformado_pedido') {
+    if (orcamento.status === 'aberto' && status === 'convertido') {
       orcamento.historico.push({
         status_anterior: orcamento.status,
         status_novo: status,

@@ -16,46 +16,11 @@ const itensSaidasSchema = new mongoose.Schema({
   },
   referencia: {
     type: String,
-    // required: true,
-  },
-  localizacao: {
-    type: String,
-    // required: true,
-  },
-  ncm: {
-    type: String,
-    required: true,
   },
   precos: {
-    preco_compra: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
     cma: {
       type: Number,
-      required: true,
       min: 0,
-    },
-    preco_venda: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    preco_atacado: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    lucro_venda: {
-      type: Number,
-      require: true,
-      min: 0.
-    },
-    lucro_atacado: {
-      type: Number,
-      require: true,
-      min: 0.
     },
   },
 });
@@ -73,15 +38,27 @@ const saidasSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-    saida: {
+  saida: {
     type: String,
     required: true,
+  },
+  responsavel_saida: {
+    type: String,
+    required: true
+  },
+  tipo_saida: {
+    type: String,
+    enum: ['venda', 'transferencia', 'perda', 'devolucao', 'ajuste', 'uso_interno', 'outros'],
+    required: true,
+  },
+  observacoes: {
+    type: String,
   },
   itens: [itensSaidasSchema],
   status: {
     type: String,
-    enum: ['ativo', 'inativo'],
-    default: 'ativo',
+    enum: ['pendente', 'concluido', 'cancelado'],
+    default: 'concluido',
   },
 }, {
   id: false,

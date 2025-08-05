@@ -17,7 +17,7 @@ exports.createSaida = async (req, res) => {
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({ error: 'Código da loja e empresa são obrigatórios.' });
     }
-    
+
     if (!codigo_saida || !saida) {
       return res.status(400).json({ error: 'Código da saída e descrição são obrigatórios.' });
     }
@@ -36,8 +36,8 @@ exports.createSaida = async (req, res) => {
 
     const tiposPermitidos = ['venda', 'transferencia', 'perda', 'devolucao', 'ajuste', 'uso_interno', 'outros'];
     if (!tiposPermitidos.includes(tipo_saida)) {
-      return res.status(400).json({ 
-        error: `Tipo de saída inválido. Tipos permitidos: ${tiposPermitidos.join(', ')}` 
+      return res.status(400).json({
+        error: `Tipo de saída inválido. Tipos permitidos: ${tiposPermitidos.join(', ')}`
       });
     }
 
@@ -48,8 +48,8 @@ exports.createSaida = async (req, res) => {
     });
 
     if (saidaExistente) {
-      return res.status(400).json({ 
-        error: `Já existe uma saída com o código ${codigo_saida} para esta loja/empresa.` 
+      return res.status(400).json({
+        error: `Já existe uma saída com o código ${codigo_saida} para esta loja/empresa.`
       });
     }
 
@@ -241,58 +241,135 @@ exports.getSaidaById = async (req, res) => {
 exports.updateSaida = async (req, res) => {
   try {
     const { id } = req.params;
-    const { codigo_loja, codigo_empresa } = req.query;
-    const updateData = req.body;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      codigo_saida,
+      saida,
+      responsavel_saida,
+      tipo_saida,
+      observacoes,
+      itens,
+    } = req.body;
 
     if (!codigo_loja || !codigo_empresa) {
-      return res.status(400).json({ error: 'Código da loja e empresa são obrigatórios' });
+      return res.status(400).json({ error: 'Código da loja e empresa são obrigatórios.' });
     }
 
-    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({ error: 'ID inválido' });
+    if (!codigo_saida || !saida) {
+      return res.status(400).json({ error: 'Código da saída e descrição são obrigatórios.' });
     }
 
-    const saidaExistente = await Saida.findOne({
+    if (!responsavel_saida) {
+      return res.status(400).json({ error: 'Responsável pela saída é obrigatório.' });
+    }
+
+    if (!tipo_saida) {
+      return res.status(400).json({ error: 'Tipo de saída é obrigatório.' });
+    }
+
+    if (!itens || !Array.isArray(itens) || itens.length === 0) {
+      return res.status(400).json({ error: 'Itens são obrigatórios e devem ser um array não vazio.' });
+    }
+
+    const tiposPermitidos = ['venda', 'transferencia', 'perda', 'devolucao', 'ajuste', 'uso_interno', 'outros'];
+    if (!tiposPermitidos.includes(tipo_saida)) {
+      return res.status(400).json({
+        error: `Tipo de saída inválido. Tipos permitidos: ${tiposPermitidos.join(', ')}`
+      });
+    }
+
+    // Busca a saída original
+    const saidaOriginal = await Saida.findOne({
       _id: id,
       codigo_loja,
       codigo_empresa
     });
 
-    if (!saidaExistente) {
-      return res.status(404).json({ error: 'Saída não encontrada' });
+    if (!saidaOriginal) {
+      return res.status(404).json({ error: 'Saída não encontrada.' });
     }
 
-    if (updateData.tipo_saida) {
-      const tiposPermitidos = ['venda', 'devolucao', 'transferencia', 'perda', 'outros'];
-      if (!tiposPermitidos.includes(updateData.tipo_saida)) {
-        return res.status(400).json({ 
-          error: `Tipo de saída inválido. Tipos permitidos: ${tiposPermitidos.join(', ')}` 
+    // Cancela a saída original: devolve os itens ao estoque
+    for (const item of saidaOriginal.itens) {
+      const produto = await Produto.findOne({
+        codigo_produto: item.codigo_produto,
+        codigo_loja,
+        codigo_empresa,
+      });
+      if (produto && produto.estoque && produto.estoque[0]) {
+        produto.estoque[0].estoque += Number(item.quantidade);
+        await produto.save();
+      }
+    }
+
+    // Valida e aplica a nova saída
+    for (const item of itens) {
+      if (!item.codigo_produto || !item.descricao || !item.quantidade) {
+        return res.status(400).json({
+          error: 'Todos os itens devem ter código_produto, descrição e quantidade.',
+        });
+      }
+
+      const quantidadeSaida = Number(item.quantidade);
+      if (quantidadeSaida <= 0) {
+        return res.status(400).json({
+          error: `Quantidade deve ser maior que zero para o produto ${item.codigo_produto}.`,
+        });
+      }
+
+      const produto = await Produto.findOne({
+        codigo_produto: item.codigo_produto,
+        codigo_loja,
+        codigo_empresa,
+      });
+
+      if (!produto) {
+        return res.status(400).json({
+          error: `Produto ${item.codigo_produto} não encontrado.`,
+        });
+      }
+
+      if (!produto.estoque || !produto.estoque[0] || produto.estoque[0].estoque === undefined) {
+        return res.status(400).json({
+          error: `Produto ${item.codigo_produto} não possui estoque configurado.`,
+        });
+      }
+
+      if (produto.estoque[0].estoque < quantidadeSaida) {
+        return res.status(400).json({
+          error: `Estoque insuficiente para o produto ${item.codigo_produto}. Disponível: ${produto.estoque[0].estoque}, Solicitado: ${quantidadeSaida}`,
         });
       }
     }
 
-    if (updateData.status) {
-      const statusPermitidos = ['pendente', 'concluido', 'cancelado'];
-      if (!statusPermitidos.includes(updateData.status)) {
-        return res.status(400).json({ 
-          error: `Status inválido. Status permitidos: ${statusPermitidos.join(', ')}` 
-        });
-      }
+    // Debita o estoque dos novos itens
+    for (const item of itens) {
+      const produto = await Produto.findOne({
+        codigo_produto: item.codigo_produto,
+        codigo_loja,
+        codigo_empresa,
+      });
+
+      const quantidadeSaida = Number(item.quantidade);
+      produto.estoque[0].estoque -= quantidadeSaida;
+      await produto.save();
     }
 
-    delete updateData.codigo_loja;
-    delete updateData.codigo_empresa;
-    delete updateData._id;
+    // Atualiza a saída
+    saidaOriginal.codigo_saida = codigo_saida;
+    saidaOriginal.saida = saida;
+    saidaOriginal.responsavel_saida = responsavel_saida;
+    saidaOriginal.tipo_saida = tipo_saida;
+    saidaOriginal.observacoes = observacoes;
+    saidaOriginal.itens = itens;
+    saidaOriginal.status = 'concluido';
 
-    const saida = await Saida.findOneAndUpdate(
-      { _id: id, codigo_loja, codigo_empresa },
-      updateData,
-      { new: true, runValidators: true }
-    );
+    await saidaOriginal.save();
 
     res.status(200).json({
-      data: saida,
-      message: 'Saída atualizada com sucesso.'
+      message: 'Saída atualizada com sucesso.',
+      data: saidaOriginal
     });
   } catch (error) {
     console.error('Erro ao atualizar saída:', error);

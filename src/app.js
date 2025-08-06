@@ -21,6 +21,7 @@ const contasBancariasRoutes = require("./routes/contasBancariasRoutes.routes");
 const servicosRoutes = require("./routes/servicosRoutes.routes");
 const osRoutes = require("./routes/osRoutes.routes");
 const mecanicosRoutes = require("./routes/mecanicosRoutes.routes");
+const pagarRoutes = require("./routes/pagar.routes");
 const auth = require("./middlewares/auth");
 
 // Usar o CORS com as opções definidas
@@ -47,6 +48,7 @@ app.use("/contasBancarias", contasBancariasRoutes);
 app.use("/os", auth, osRoutes);
 app.use("/servicos", auth, servicosRoutes);
 app.use("/mecanicos", auth, mecanicosRoutes);
+app.use("/pagar", auth, pagarRoutes);
 /* os  */
 
 connectToDatabase();

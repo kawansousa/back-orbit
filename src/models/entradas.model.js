@@ -1,5 +1,18 @@
 const mongoose = require('mongoose');
 
+const parcelasSchema = new mongoose.Schema(
+  {
+    valor_total: {
+      type: Number,
+    },
+    data_vencimento: {
+      type: Date,
+    },
+  },
+  { _id: false }
+);
+
+
 const pagamentoSchema = new mongoose.Schema({
   meio_pagamento: {
     type: String,
@@ -16,6 +29,7 @@ const pagamentoSchema = new mongoose.Schema({
   valor_pagamento: {
     type: Number,
   },
+  parcelas: [parcelasSchema],
 },
   { _id: false }
 );

@@ -167,3 +167,132 @@ exports.listarPagamentos = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.liquidarPagamento = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const {
+      codigo_loja,
+      codigo_empresa,
+      codigo_pagar,
+      valor,
+      forma_pagamento,
+      observacao
+    } = req.body;
+
+    // Validações básicas
+    if (!codigo_loja || !codigo_empresa) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Código da empresa e loja são obrigatórios' });
+    }
+
+    if (!codigo_pagar) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Código do pagamento é obrigatório' });
+    }
+
+    if (!valor || valor <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Valor deve ser maior que zero' });
+    }
+
+    if (!forma_pagamento) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Forma de pagamento é obrigatória' });
+    }
+
+    // Buscar o pagamento
+    const pagamento = await Pagar.findOne({
+      codigo_loja,
+      codigo_empresa,
+      codigo_pagar
+    }).session(session);
+
+    if (!pagamento) {
+      await session.abortTransaction();
+      return res.status(404).json({ error: 'Pagamento não encontrado' });
+    }
+
+    // Verificar se o pagamento pode ser liquidado
+    if (pagamento.status === 'liquidado') {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Pagamento já foi liquidado' });
+    }
+
+    if (pagamento.status === 'cancelado') {
+      await session.abortTransaction();
+      return res.status(400).json({ error: 'Não é possível liquidar um pagamento cancelado' });
+    }
+
+    // Verificar se o valor não excede o valor restante
+    if (valor > pagamento.valor_restante) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        error: `Valor (${valor}) não pode ser maior que o valor restante (${pagamento.valor_restante})` 
+      });
+    }
+
+    // Calcular novo valor restante
+    const novoValorRestante = pagamento.valor_restante - valor;
+
+    // Determinar novo status baseado no valor restante
+    let novoStatus;
+    if (novoValorRestante === 0) {
+      novoStatus = 'liquidado';
+    } else if (novoValorRestante < pagamento.valor_total) {
+      novoStatus = 'parcial';
+    } else {
+      novoStatus = 'aberto';
+    }
+
+    // Criar objeto da liquidação (o campo data terá default Date.now pelo schema)
+    const novaLiquidacao = {
+      valor,
+      forma_pagamento,
+      observacao
+    };
+
+    // Atualizar o pagamento
+    const pagamentoAtualizado = await Pagar.findOneAndUpdate(
+      {
+        codigo_loja,
+        codigo_empresa,
+        codigo_pagar
+      },
+      {
+        $set: {
+          valor_restante: novoValorRestante,
+          status: novoStatus
+        },
+        $push: {
+          liquidacoes: novaLiquidacao
+        }
+      },
+      {
+        new: true,
+        session
+      }
+    ).populate('fornecedor');
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      message: 'Pagamento liquidado com sucesso',
+      pagamento: pagamentoAtualizado,
+      liquidacao: {
+        valor_liquidado: valor,
+        valor_restante: novoValorRestante,
+        status_anterior: pagamento.status,
+        status_atual: novoStatus
+      }
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    res.status(500).json({ error: error.message });
+  } finally {
+    session.endSession();
+  }
+};

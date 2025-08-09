@@ -12,32 +12,34 @@ async function autoIncrementreceber(req, res, next) {
       return res.status(400).json({ error: 'Parcelas são obrigatórias e devem ser um array não vazio' });
     }
 
-    const maxReceberResult = await Receber.aggregate([
-      {
-        $match: {
-          codigo_loja: codigo_loja,
-          codigo_empresa: codigo_empresa
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          maxCodigo: { $max: "$codigo_receber" }
-        }
-      }
-    ]);
+    const ultimoReceber = await Receber.findOne({
+      codigo_loja,
+      codigo_empresa
+    })
+    .sort({ codigo_receber: -1 })
+    .select('codigo_receber')
+    .lean();
 
-    let nextCodigoReceber = maxReceberResult.length > 0 && maxReceberResult[0].maxCodigo 
-      ? maxReceberResult[0].maxCodigo + 1 
-      : 1;
+    let proximoCodigo = ultimoReceber ? ultimoReceber.codigo_receber + 1 : 1;
 
-    req.body.parcelas = parcelas.map((parcela, index) => ({
-      ...parcela,
-      codigo_receber: nextCodigoReceber + index
-    }));
+    console.log(`Último código encontrado: ${ultimoReceber?.codigo_receber || 'Nenhum'}`);
+    console.log(`Próximo código base: ${proximoCodigo}`);
+
+    req.body.parcelas = parcelas.map((parcela, index) => {
+      const codigoReceber = proximoCodigo + index;
+      
+      console.log(`Gerando código receber: ${codigoReceber} para parcela ${index + 1}/${parcelas.length}`);
+      
+      return {
+        ...parcela,
+        codigo_receber: codigoReceber
+      };
+    });
     
-    console.log(`Próximo código receber: ${nextCodigoReceber}, Total parcelas: ${parcelas.length}`);
-    console.log('Códigos gerados:', req.body.parcelas.map(p => p.codigo_receber));
+    console.log('Códigos gerados em sequência:', req.body.parcelas.map((p, index) => ({
+      parcela: `${index + 1}/${parcelas.length}`,
+      codigo: p.codigo_receber
+    })));
 
     next();
   } catch (error) {

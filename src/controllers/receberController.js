@@ -18,23 +18,69 @@ exports.criarReceber = async (req, res) => {
       preco
     } = req.body;
 
-    // Validações
+    if (!codigo_loja || !codigo_empresa) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Código da loja e empresa são obrigatórios" });
+    }
+
+    if (!cliente) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Cliente é obrigatório" });
+    }
+
+    if (!origem) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Origem é obrigatória" });
+    }
+
+    if (!documento_origem) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Documento de origem é obrigatório" });
+    }
+
     if (!parcelas || !Array.isArray(parcelas) || parcelas.length === 0) {
       await session.abortTransaction();
       return res.status(400).json({ message: "Parcelas inválidas" });
     }
 
     const recebimentos = [];
+    const codigosGerados = [];
 
     for (let i = 0; i < parcelas.length; i++) {
-      const { valor_total, data_vencimento, observacao, codigo_receber } =
-        parcelas[i];
+      const { valor_total, data_vencimento, observacao, codigo_receber } = parcelas[i];
 
       if (!valor_total || valor_total <= 0) {
         await session.abortTransaction();
         return res
           .status(400)
           .json({ message: `Valor total inválido na parcela ${i + 1}` });
+      }
+
+      if (!data_vencimento) {
+        await session.abortTransaction();
+        return res
+          .status(400)
+          .json({ message: `Data de vencimento é obrigatória na parcela ${i + 1}` });
+      }
+
+      if (!codigo_receber) {
+        await session.abortTransaction();
+        return res
+          .status(400)
+          .json({ message: `Código receber não foi gerado para a parcela ${i + 1}` });
+      }
+
+      const receberExistente = await Receber.findOne({
+        codigo_loja,
+        codigo_empresa,
+        codigo_receber
+      }).session(session);
+
+      if (receberExistente) {
+        await session.abortTransaction();
+        return res
+          .status(400)
+          .json({ message: `Código receber ${codigo_receber} já existe` });
       }
 
       const novoReceber = new Receber({
@@ -45,7 +91,7 @@ exports.criarReceber = async (req, res) => {
         documento_origem,
         valor_total,
         valor_restante: valor_total,
-        data_vencimento,
+        data_vencimento: new Date(data_vencimento),
         codigo_receber,
         observacao,
         status: "aberto",
@@ -53,14 +99,21 @@ exports.criarReceber = async (req, res) => {
       });
 
       recebimentos.push(novoReceber.save({ session }));
+      codigosGerados.push(codigo_receber);
     }
 
     await Promise.all(recebimentos);
     await session.commitTransaction();
 
-    res.status(201).json({ message: "Recebíveis criados com sucesso" });
+    res.status(201).json({ 
+      message: "Recebíveis criados com sucesso",
+      total_parcelas: parcelas.length,
+      codigos_gerados: codigosGerados,
+      valor_total: parcelas.reduce((sum, p) => sum + p.valor_total, 0)
+    });
   } catch (error) {
     await session.abortTransaction();
+    console.error('Erro ao criar recebíveis:', error);
     res.status(500).json({ error: error.message });
   } finally {
     session.endSession();
@@ -84,10 +137,8 @@ exports.listarRecebers = async (req, res) => {
       codigo_loja,
     };
 
-    // Filtro por status
     if (status) query.status = status;
 
-    // Filtro por data de emissão
     if (dataInicio && dataFim) {
       query.data_emissao = {
         $gte: new Date(dataInicio),
@@ -99,7 +150,7 @@ exports.listarRecebers = async (req, res) => {
 
     const recebers = await Receber.find(query)
       .populate("cliente", "nome")
-      .sort({ data_emissao: -1 })
+      .sort({ codigo_receber: -1 }) 
       .skip(skip)
       .limit(Number(limit));
 

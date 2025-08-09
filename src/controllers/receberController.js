@@ -126,7 +126,7 @@ exports.liquidarReceber = async (req, res) => {
       codigo_empresa,
       codigo_receber,
       valor,
-      forma_recebimento,
+      meio_pagamento,
       observacao
     } = req.body;
 
@@ -145,9 +145,25 @@ exports.liquidarReceber = async (req, res) => {
       return res.status(400).json({ error: 'Valor deve ser maior que zero' });
     }
 
-    if (!forma_recebimento) {
+    if (!meio_pagamento) {
       await session.abortTransaction();
-      return res.status(400).json({ error: 'Forma de recebimento é obrigatória' });
+      return res.status(400).json({ error: 'Meio de pagamento é obrigatório' });
+    }
+
+    const meiosPagamentoValidos = [
+      "dinheiro",
+      "pix",
+      "cartao_credito", 
+      "cartao_debito",
+      "cheque",
+      "aprazo"
+    ];
+
+    if (!meiosPagamentoValidos.includes(meio_pagamento)) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        error: `Meio de pagamento inválido. Valores aceitos: ${meiosPagamentoValidos.join(', ')}` 
+      });
     }
 
     const recebimento = await Receber.findOne({
@@ -191,7 +207,7 @@ exports.liquidarReceber = async (req, res) => {
 
     const novaLiquidacao = {
       valor,
-      forma_recebimento,
+      meio_pagamento,
       observacao
     };
 

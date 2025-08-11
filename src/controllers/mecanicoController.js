@@ -262,15 +262,15 @@ exports.relatorioMecanicos = async (req, res) => {
       status: "ativo",
     });
 
+    const ordensServico = await Os.find({
+      codigo_loja,
+      codigo_empresa,
+      status: "faturado",
+      dataAbertura: { $gte: dataInicioFiltro, $lte: dataFimFiltro },
+    }).populate('cliente', 'nome'); 
+
     const relatorio = await Promise.all(
       mecanicos.map(async (mecanico) => {
-        const ordensServico = await Os.find({
-          codigo_loja,
-          codigo_empresa,
-          status: "faturado",
-          dataAbertura: { $gte: dataInicioFiltro, $lte: dataFimFiltro },
-        });
-
         const ordensServicoAtendidas = [];
         let valorTotalServicos = 0;
         let quantidadeServicos = 0;
@@ -324,12 +324,19 @@ exports.relatorioMecanicos = async (req, res) => {
                 )
             );
 
+            const obterNomeCliente = () => {
+              if (os.cliente && typeof os.cliente === 'object' && os.cliente.nome) {
+                return os.cliente.nome;
+              }
+              if (os.cliente_sem_cadastro && os.cliente_sem_cadastro.nome) {
+                return os.cliente_sem_cadastro.nome;
+              }
+              return "Cliente não informado";
+            };
+
             return {
               codigo_os: os.codigo_os,
-              cliente:
-                os.cliente?.nome ||
-                os.cliente_sem_cadastro?.nome ||
-                "Cliente não informado",
+              cliente: obterNomeCliente(),
               data_fechamento: os.dataFechamento || os.dataAbertura,
               valor_total:
                 servicosDoMecanico.reduce(

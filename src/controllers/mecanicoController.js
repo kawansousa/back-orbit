@@ -223,7 +223,6 @@ exports.deleteMecanico = async (req, res) => {
   }
 };
 
-
 exports.relatorioMecanicos = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa, data_inicio, data_fim } = req.query;
@@ -234,59 +233,75 @@ exports.relatorioMecanicos = async (req, res) => {
       });
     }
 
-    const dataFim = data_fim ? new Date(data_fim) : new Date();
-    const dataInicio = data_inicio ? new Date(data_inicio) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const adicionarZeroEsquerda = (n) =>
+      String(n).padStart(2, "0");
 
-    dataInicio.setHours(0, 0, 0, 0);
-    dataFim.setHours(23, 59, 59, 999);
+    const formatarDataParaYMD = (data) =>
+      `${data.getFullYear()}-${adicionarZeroEsquerda(data.getMonth() + 1)}-${adicionarZeroEsquerda(data.getDate())}`;
+
+    const dataHoje = new Date();
+    const dataTrintaDiasAtras = new Date();
+    dataTrintaDiasAtras.setDate(dataHoje.getDate() - 30);
+
+    const dataInicioSelecionada =
+      typeof data_inicio === "string" && data_inicio
+        ? data_inicio
+        : formatarDataParaYMD(dataTrintaDiasAtras);
+
+    const dataFimSelecionada =
+      typeof data_fim === "string" && data_fim
+        ? data_fim
+        : formatarDataParaYMD(dataHoje);
+
+    const dataInicioFiltro = new Date(`${dataInicioSelecionada}T00:00:00.000Z`);
+    const dataFimFiltro = new Date(`${dataFimSelecionada}T23:59:59.999Z`);
 
     const mecanicos = await Mecanico.find({
       codigo_loja,
       codigo_empresa,
-      status: "ativo"
+      status: "ativo",
     });
 
     const relatorio = await Promise.all(
       mecanicos.map(async (mecanico) => {
-        const todasOs = await Os.find({
+        const ordensServico = await Os.find({
           codigo_loja,
           codigo_empresa,
           status: "faturado",
-          dataAbertura: {
-            $gte: dataInicio,
-            $lte: dataFim
-          }
+          dataAbertura: { $gte: dataInicioFiltro, $lte: dataFimFiltro },
         });
 
-        const osAtendidasPeloMecanico = [];
+        const ordensServicoAtendidas = [];
         let valorTotalServicos = 0;
         let quantidadeServicos = 0;
 
-        todasOs.forEach(os => {
+        ordensServico.forEach((os) => {
           if (os.servicos && os.servicos.length > 0) {
-            let mecanicoAtendeNessaOs = false;
-            
-            os.servicos.forEach(servico => {
+            let mecanicoAtendeuEssaOS = false;
+
+            os.servicos.forEach((servico) => {
               if (servico.mecanico && Array.isArray(servico.mecanico)) {
-                const mecanicoEncontrado = servico.mecanico.find(m => 
-                  m.nome === mecanico.nome || m.codigo_mecanico === mecanico.codigo_mecanico
+                const encontrouMecanico = servico.mecanico.find(
+                  (m) =>
+                    m.nome === mecanico.nome ||
+                    m.codigo_mecanico === mecanico.codigo_mecanico
                 );
-                
-                if (mecanicoEncontrado) {
-                  mecanicoAtendeNessaOs = true;
+                if (encontrouMecanico) {
+                  mecanicoAtendeuEssaOS = true;
                   valorTotalServicos += servico.total_servico || 0;
                   quantidadeServicos++;
                 }
               }
             });
 
-            if (mecanicoAtendeNessaOs) {
-              osAtendidasPeloMecanico.push(os);
+            if (mecanicoAtendeuEssaOS) {
+              ordensServicoAtendidas.push(os);
             }
           }
         });
 
-        const valorComissao = (valorTotalServicos * (mecanico.comissao || 0)) / 100;
+        const valorComissao =
+          (valorTotalServicos * (mecanico.comissao || 0)) / 100;
 
         return {
           codigo_mecanico: mecanico.codigo_mecanico,
@@ -297,26 +312,39 @@ exports.relatorioMecanicos = async (req, res) => {
           quantidade_servicos: quantidadeServicos,
           valor_total_servicos: valorTotalServicos,
           valor_comissao: valorComissao,
-          os_detalhes: osAtendidasPeloMecanico.map(os => {
-            const servicosDoMecanico = os.servicos.filter(servico => 
-              servico.mecanico && Array.isArray(servico.mecanico) && 
-              servico.mecanico.find(m => m.nome === mecanico.nome || m.codigo_mecanico === mecanico.codigo_mecanico)
+          os_detalhes: ordensServicoAtendidas.map((os) => {
+            const servicosDoMecanico = os.servicos.filter(
+              (servico) =>
+                servico.mecanico &&
+                Array.isArray(servico.mecanico) &&
+                servico.mecanico.find(
+                  (m) =>
+                    m.nome === mecanico.nome ||
+                    m.codigo_mecanico === mecanico.codigo_mecanico
+                )
             );
 
             return {
               codigo_os: os.codigo_os,
-              cliente: os.cliente?.nome || os.cliente_sem_cadastro?.nome || "Cliente não informado",
+              cliente:
+                os.cliente?.nome ||
+                os.cliente_sem_cadastro?.nome ||
+                "Cliente não informado",
               data_fechamento: os.dataFechamento || os.dataAbertura,
-              valor_total: servicosDoMecanico.reduce((sum, s) => sum + (s.total_servico || 0), 0) || 0,
-              servicos_realizados: servicosDoMecanico.map(servico => ({
+              valor_total:
+                servicosDoMecanico.reduce(
+                  (soma, serv) => soma + (serv.total_servico || 0),
+                  0
+                ) || 0,
+              servicos_realizados: servicosDoMecanico.map((servico) => ({
                 codigo_servico: servico.codigo_servico,
                 descricao: servico.descricao,
                 quantidade: servico.quantidade,
                 valor_unitario: servico.preco,
-                valor_total: servico.total_servico
-              }))
+                valor_total: servico.total_servico,
+              })),
             };
-          })
+          }),
         };
       })
     );
@@ -325,20 +353,28 @@ exports.relatorioMecanicos = async (req, res) => {
 
     const totaisGerais = {
       total_mecanicos: relatorio.length,
-      total_servicos: relatorio.reduce((sum, m) => sum + m.quantidade_servicos, 0),
-      total_valor_servicos: relatorio.reduce((sum, m) => sum + m.valor_total_servicos, 0),
-      total_comissoes: relatorio.reduce((sum, m) => sum + m.valor_comissao, 0)
+      total_servicos: relatorio.reduce(
+        (soma, m) => soma + m.quantidade_servicos,
+        0
+      ),
+      total_valor_servicos: relatorio.reduce(
+        (soma, m) => soma + m.valor_total_servicos,
+        0
+      ),
+      total_comissoes: relatorio.reduce(
+        (soma, m) => soma + m.valor_comissao,
+        0
+      ),
     };
 
     res.status(200).json({
       periodo: {
-        data_inicio: dataInicio,
-        data_fim: dataFim
+        data_inicio: dataInicioSelecionada,
+        data_fim: dataFimSelecionada,
       },
       totais: totaisGerais,
-      mecanicos: relatorio
+      mecanicos: relatorio,
     });
-
   } catch (error) {
     console.error("Erro ao gerar relatório de mecânicos:", error);
     res.status(500).json({ error: error.message });

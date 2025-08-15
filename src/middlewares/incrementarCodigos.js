@@ -1,25 +1,30 @@
-const mongoose = require('mongoose');
+const Loja = require('../models/lojas.model'); 
 
-module.exports = async function incrementarCodigos(next) {
-  const loja = this;
-
-  // Incremento automático do `codigo_loja` se não estiver definido
-  if (!loja.codigo_loja) {
-    // Obter o último código de loja e incrementar
-    const lastLoja = await mongoose.model('Loja').findOne().sort({ codigo_loja: -1 });
-    loja.codigo_loja = lastLoja ? lastLoja.codigo_loja + 1 : 1;
-  }
-
-  // Incremento automático do `codigo_empresa` para cada empresa dentro da loja
-  if (loja.empresas && loja.isModified('empresas')) {
-    // Atribuindo o código sequencial de empresa dentro da loja
-    for (let i = 0; i < loja.empresas.length; i++) {
-      const empresa = loja.empresas[i];
-
-      // Atribui um código sequencial para a empresa dentro da loja (começando do 1)
-      empresa.codigo_empresa = i + 1;  // O código começa de 1 para a primeira empresa
+module.exports = async function incrementarCodigos(req, res, next) {
+  try {
+    if (!req.body.codigo_loja) {
+      const ultimaLoja = await Loja
+        .findOne()
+        .sort({ codigo_loja: -1 })
+        .select('codigo_loja');
+      
+      req.body.codigo_loja = ultimaLoja ? ultimaLoja.codigo_loja + 1 : 1;
     }
-  }
 
-  next();
+    if (req.body.empresas && req.body.empresas.length > 0) {
+      req.body.empresas.forEach((empresa, index) => {
+        if (!empresa.codigo_empresa) {
+          empresa.codigo_empresa = index + 1;
+        }
+      });
+    }
+
+    next(); 
+  } catch (error) {
+    console.error('Erro ao incrementar códigos:', error);
+    return res.status(500).json({ 
+      error: 'Erro ao gerar códigos automáticos',
+      details: error.message 
+    });
+  }
 };

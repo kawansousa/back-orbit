@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const incrementarCodigos = require('../middlewares/incrementarCodigos');
 
 // const configuracoesSchema = new mongoose.Schema({
 //   fiscal: {
@@ -17,8 +16,8 @@ const empresaSchema = new mongoose.Schema({
   razao: { type: String, required: true },
   nomeFantasia: { type: String, required: true },
   cnpj: { type: String, required: true, unique: true },
-  inscricaoEstadual: { type: String, required: true },
-  inscricaoMunicipal: { type: String, required: true },
+  inscricaoEstadual: { type: String },
+  inscricaoMunicipal: { type: String},
   fone: { type: String },
   fone_secundario: { type: String },
   email: { type: String },
@@ -47,7 +46,6 @@ const lojaSchema = new mongoose.Schema({
 });
 
 // Aplicando o middleware
-lojaSchema.pre('save', incrementarCodigos);
 
 const Loja = mongoose.model('Loja', lojaSchema);
 

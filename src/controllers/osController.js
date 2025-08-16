@@ -230,36 +230,37 @@ exports.createOs = async (req, res) => {
       );
 
       const recebimentos = [];
-      if (parcelas && parcelas.length > 0) {
-        for (let i = 0; i < parcelas.length; i++) {
-          const parcela = parcelas[i];
-          const { valor_total, data_vencimento, observacao, meio_pagamento } = parcela;
+if (parcelas && parcelas.length > 0) {
+  for (let i = 0; i < parcelas.length; i++) {
+    const parcela = parcelas[i];
+    const { valor_total, data_vencimento, observacao, meio_pagamento, codigo_receber } = parcela;
 
-          if (!valor_total || valor_total <= 0) {
-            throw new Error(`Valor total inválido na parcela ${i + 1}`);
-          }
+    if (!valor_total || valor_total <= 0) {
+      throw new Error(`Valor total inválido na parcela ${i + 1}`);
+    }
 
-          const timestamp = Date.now();
-          const codigo_receber = parseInt(`${novaOs.codigo_os}${i + 1}${timestamp.toString().slice(-6)}`);
+    if (!codigo_receber) {
+      throw new Error(`Código receber não foi gerado para a parcela ${i + 1}`);
+    }
 
-          const novoReceber = new Receber({
-            codigo_loja,
-            codigo_empresa,
-            cliente,
-            origem: "os",
-            documento_origem: novaOs.codigo_os,
-            valor_total,
-            valor_restante: valor_total,
-            data_vencimento,
-            codigo_receber,
-            observacao,
-            status: "aberto",
-            fatura: `${i + 1}/${parcelas.length}`,
-            meio_pagamento,
-          });
-          recebimentos.push(novoReceber);
-        }
-      }
+    const novoReceber = new Receber({
+      codigo_loja,
+      codigo_empresa,
+      cliente,
+      origem: "os",
+      documento_origem: novaOs.codigo_os,
+      valor_total,
+      valor_restante: valor_total,
+      data_vencimento,
+      codigo_receber, 
+      observacao,
+      status: "aberto",
+      fatura: `${i + 1}/${parcelas.length}`,
+      meio_pagamento,
+    });
+    recebimentos.push(novoReceber);
+  }
+}
 
       for (const item of itens) {
         const produto = await Produto.findOne({
@@ -563,38 +564,42 @@ exports.updateOs = async (req, res) => {
         }
       }
 
-      if (parcelas && parcelas.length > 0) {
-        for (let i = 0; i < parcelas.length; i++) {
-          const parcela = parcelas[i];
+if (parcelas && parcelas.length > 0) {
+  for (let i = 0; i < parcelas.length; i++) {
+    const parcela = parcelas[i];
 
-          if (!parcela.valor_total || parcela.valor_total <= 0) {
-            await session.abortTransaction();
-            return res.status(400).json({
-              message: `Valor total inválido na parcela ${i + 1}`,
-            });
-          }
+    if (!parcela.valor_total || parcela.valor_total <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: `Valor total inválido na parcela ${i + 1}`,
+      });
+    }
 
-          const timestamp = Date.now();
-          const codigo_receber = parseInt(`${codigo_os}${i + 1}${timestamp.toString().slice(-6)}`);
+    if (!parcela.codigo_receber) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        message: `Código receber não foi gerado para a parcela ${i + 1}`,
+      });
+    }
 
-          const novaParcela = new Receber({
-            codigo_loja,
-            codigo_empresa,
-            cliente,
-            codigo_receber,
-            documento_origem: String(codigo_os),
-            origem: "os",
-            valor_restante: parcela.valor_total,
-            valor_total: parcela.valor_total,
-            status: "aberto",
-            data_vencimento: parcela.data_vencimento,
-            observacao: parcela.observacao,
-            fatura: `${i + 1}/${parcelas.length}`,
-            meio_pagamento: parcela.meio_pagamento,
-          });
-          await novaParcela.save({ session });
-        }
-      }
+    const novaParcela = new Receber({
+      codigo_loja,
+      codigo_empresa,
+      cliente,
+      codigo_receber: parcela.codigo_receber, 
+      documento_origem: String(codigo_os),
+      origem: "os",
+      valor_restante: parcela.valor_total,
+      valor_total: parcela.valor_total,
+      status: "aberto",
+      data_vencimento: parcela.data_vencimento,
+      observacao: parcela.observacao,
+      fatura: `${i + 1}/${parcelas.length}`,
+      meio_pagamento: parcela.meio_pagamento,
+    });
+    await novaParcela.save({ session });
+  }
+}
     }
 
     osExistente.cliente = cliente || osExistente.cliente;

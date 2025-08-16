@@ -31,7 +31,7 @@ app.use(express.json());
 app.use(router);
 
 app.use("/usuario", userRoutes);
-app.use("/lojas", auth, lojasRoutes);
+app.use("/lojas", lojasRoutes);
 app.use("/produtos", auth, produtosRoutes);
 app.use("/clientes", auth, clientesRoutes);
 app.use("/fornecedores", auth, fornecedoresRoutes);

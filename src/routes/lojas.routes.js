@@ -1,10 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const lojasController = require('../controllers/lojasController');
+const lojasController = require("../controllers/lojasController");
+const incrementarCodigos = require("../middlewares/incrementarCodigos");
 
-router.post('/lojas', lojasController.createLoja);
-router.get('/lojas', lojasController.getLojas);
-router.post('/lojas/:lojaId/empresas', lojasController.addEmpresaToLoja);
-router.get('/empresas', lojasController.getEmpresaByLoja);
-
+router.post("/", incrementarCodigos, lojasController.createLoja);
+router.post("/empresa", incrementarCodigos, lojasController.createEmpresa);
 module.exports = router;

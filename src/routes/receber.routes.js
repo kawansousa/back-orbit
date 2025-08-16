@@ -7,6 +7,5 @@ const autoIncrementMovimento = require('../middlewares/autoIncrementMovimento');
 // Criar novo Cliente com middleware
 router.post('/receber', autoIncrementreceber, receberController.criarReceber);
 router.get('/recebers', receberController.listarRecebers);
-router.post('/receberLiquidacao',autoIncrementMovimento, receberController.liquidarReceber);
-router.post('/receberDesliquidacao',autoIncrementMovimento, receberController.estornarLiquidacao);
+router.put('/liquidar', receberController.liquidarReceber);
 module.exports = router;

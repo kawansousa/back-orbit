@@ -358,15 +358,24 @@ exports.alterarVenda = async (req, res) => {
       origem,
     } = req.body;
 
-    const venda = await Venda.findOne({
+    if (!codigo_loja || !codigo_empresa) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
+    }
+
+    const vendaExistente = await Venda.findOne({
       codigo_venda,
       codigo_loja,
       codigo_empresa,
     }).session(session);
 
-    if (!venda) {
+    if (!vendaExistente) {
       await session.abortTransaction();
-      return res.status(404).json({ message: "Venda não encontrada" });
+      return res.status(404).json({
+        error: "Venda não encontrada.",
+      });
     }
 
     const caixaAberto = await Caixa.findOne({
@@ -375,27 +384,44 @@ exports.alterarVenda = async (req, res) => {
       status: "aberto",
     }).session(session);
 
-    const movimentacoes = await Movimentacao.findOne({
-      documento_origem: String(venda.codigo_venda),
+    const todasMovimentacoes = await Movimentacao.find({
+      $or: [
+        { documento_origem: String(vendaExistente.codigo_venda) },
+        { documento_origem: Number(vendaExistente.codigo_venda) },
+        { documento_origem: vendaExistente.codigo_venda }
+      ],
+      origem: "venda",
       codigo_loja,
       codigo_empresa,
-      origem: "venda",
     }).session(session);
 
-    if (
-      caixaAberto == null ||
-      movimentacoes.codigo_caixa !== caixaAberto.codigo_caixa
-    ) {
-      await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ message: "Alteração só é permitida no mesmo caixa." });
+    let movimentacaoCorreta = null;
+
+    if (caixaAberto) {
+      movimentacaoCorreta = todasMovimentacoes.find(mov =>
+        mov.caixaId.toString() === caixaAberto._id.toString()
+      );
+
+      if (!movimentacaoCorreta) {
+        const primeiraMovimentacao = todasMovimentacoes[0];
+
+        if (primeiraMovimentacao) {
+          const saoIguais = String(primeiraMovimentacao.codigo_caixa) === String(caixaAberto.codigo_caixa);
+
+          if (!saoIguais) {
+            await session.abortTransaction();
+            return res.status(400).json({
+              message: `Alteração só é permitida no mesmo caixa. Venda foi realizada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`
+            });
+          }
+        }
+      }
+
+      const formasPagamentoAntigas = vendaExistente.forma_pagamento || [];
+      const totalDinheiroRevertido = atualizarSaldoCaixa(caixaAberto, formasPagamentoAntigas, 'subtrair');
     }
 
-    const formasPagamentoAntigas = venda.forma_pagamento || [];
-    const totalDinheiroRevertido = atualizarSaldoCaixa(caixaAberto, formasPagamentoAntigas, 'subtrair');
-
-    for (const item of venda.itens) {
+    for (const item of vendaExistente.itens) {
       const produto = await Produto.findOne({
         codigo_loja,
         codigo_empresa,
@@ -403,20 +429,32 @@ exports.alterarVenda = async (req, res) => {
       }).session(session);
 
       if (produto) {
-        produto.estoque[0].estoque += item.quantidade;
-        await produto.save({ session });
+        const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+
+        if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
+          produto.estoque[0].estoque += item.quantidade;
+          await produto.save({ session });
+        }
       }
     }
 
     await Movimentacao.deleteMany({
-      documento_origem: codigo_venda,
+      $or: [
+        { documento_origem: String(codigo_venda) },
+        { documento_origem: Number(codigo_venda) },
+        { documento_origem: codigo_venda }
+      ],
       origem: "venda",
       codigo_loja,
       codigo_empresa,
     }).session(session);
 
     await Receber.deleteMany({
-      documento_origem: codigo_venda,
+      $or: [
+        { documento_origem: String(codigo_venda) },
+        { documento_origem: Number(codigo_venda) },
+        { documento_origem: codigo_venda }
+      ],
       origem: "venda",
       codigo_loja,
       codigo_empresa,
@@ -429,55 +467,89 @@ exports.alterarVenda = async (req, res) => {
         codigo_produto: item.codigo_produto,
       }).session(session);
 
-      if (!produto || produto.estoque[0].estoque < item.quantidade) {
+      if (!produto) {
         await session.abortTransaction();
         return res.status(400).json({
-          message: `Estoque insuficiente para o produto ${item.codigo_produto}`,
+          message: `Produto não encontrado: ${item.codigo_produto}`,
         });
       }
 
-      produto.estoque[0].estoque -= item.quantidade;
-      await produto.save({ session });
+      const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+
+      if (configuracaoEstoque === "SIM") {
+        if (produto.estoque[0].estoque < item.quantidade) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            message: `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`,
+          });
+        }
+        produto.estoque[0].estoque -= item.quantidade;
+      } else if (configuracaoEstoque === "PERMITE_NEGATIVO") {
+        produto.estoque[0].estoque -= item.quantidade;
+      }
+
+      if (configuracaoEstoque !== "NAO") {
+        await produto.save({ session });
+      }
     }
 
-    venda.cliente = cliente;
-    venda.cliente_sem_cadastro = cliente_sem_cadastro;
-    venda.vendedor = vendedor;
-    venda.tipo = tipo;
-    venda.observacoes = observacoes;
-    venda.itens = itens;
-    venda.forma_pagamento = forma_pagamento;
-    venda.valores = valores;
-    venda.historico = historico;
-    venda.parcelas = parcelas;
-    venda.origem = origem;
+    vendaExistente.cliente = cliente || vendaExistente.cliente;
+    vendaExistente.cliente_sem_cadastro = cliente_sem_cadastro || vendaExistente.cliente_sem_cadastro;
+    vendaExistente.vendedor = vendedor || vendaExistente.vendedor;
+    vendaExistente.tipo = tipo || vendaExistente.tipo;
+    vendaExistente.observacoes = observacoes || vendaExistente.observacoes;
+    vendaExistente.itens = itens || vendaExistente.itens;
+    vendaExistente.forma_pagamento = forma_pagamento || vendaExistente.forma_pagamento;
+    vendaExistente.valores = valores || vendaExistente.valores;
+    vendaExistente.historico = historico || vendaExistente.historico;
+    vendaExistente.parcelas = parcelas || vendaExistente.parcelas;
+    vendaExistente.origem = origem || vendaExistente.origem;
 
-    await venda.save({ session });
+    await vendaExistente.save({ session });
 
-    const totalDinheiroAdicionado = atualizarSaldoCaixa(caixaAberto, forma_pagamento, 'adicionar');
-
-    for (const pagamento of forma_pagamento) {
-      const novaMovimentacao = new Movimentacao({
-        codigo_loja,
-        codigo_empresa,
-        caixaId: caixaAberto._id,
-        caixa: caixaAberto.caixa,
-        codigo_movimento,
-        codigo_caixa: caixaAberto.codigo_caixa,
-        tipo_movimentacao: "entrada",
-        valor: pagamento.valor_pagamento,
-        meio_pagamento: pagamento.meio_pagamento,
-        documento_origem: codigo_venda,
-        origem: "venda",
-        categoria_contabil: "receita",
-        historico: JSON.stringify(historico) || "Venda alterada",
-      });
-
-      await novaMovimentacao.save({ session });
+    if (caixaAberto) {
+      const totalDinheiroAdicionado = atualizarSaldoCaixa(caixaAberto, forma_pagamento, 'adicionar');
     }
 
-    if (tipo === "aprazo" && parcelas) {
-      for (const parcela of parcelas) {
+    if (forma_pagamento && forma_pagamento.length > 0) {
+      for (const pagamento of forma_pagamento) {
+        const novaMovimentacao = new Movimentacao({
+          codigo_loja,
+          codigo_empresa,
+          caixaId: caixaAberto?._id,
+          caixa: caixaAberto?.caixa,
+          codigo_movimento,
+          codigo_caixa: caixaAberto?.codigo_caixa,
+          tipo_movimentacao: "entrada",
+          valor: pagamento.valor_pagamento,
+          meio_pagamento: pagamento.meio_pagamento,
+          documento_origem: String(codigo_venda),
+          origem: "venda",
+          categoria_contabil: "receita",
+          historico: JSON.stringify(historico) || "Venda alterada",
+        });
+        await novaMovimentacao.save({ session });
+      }
+    }
+
+    if (tipo === "aprazo" && parcelas && parcelas.length > 0) {
+      for (let i = 0; i < parcelas.length; i++) {
+        const parcela = parcelas[i];
+
+        if (!parcela.valor_total || parcela.valor_total <= 0) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            message: `Valor total inválido na parcela ${i + 1}`,
+          });
+        }
+
+        if (!parcela.codigo_receber) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            message: `Código receber não foi gerado para a parcela ${i + 1}`,
+          });
+        }
+
         const novaParcela = new Receber({
           codigo_loja,
           codigo_empresa,
@@ -489,23 +561,29 @@ exports.alterarVenda = async (req, res) => {
           valor_total: parcela.valor_total,
           status: "aberto",
           data_vencimento: parcela.data_vencimento,
+          observacao: parcela.observacao,
+          fatura: `${i + 1}/${parcelas.length}`,
+          meio_pagamento: parcela.meio_pagamento,
         });
         await novaParcela.save({ session });
       }
     }
 
-    await caixaAberto.save({ session });
+    if (caixaAberto) {
+      await caixaAberto.save({ session });
+    }
 
     await session.commitTransaction();
 
-    res.status(200).json({ 
-      message: "Venda alterada com sucesso",
-      saldoCaixaAtualizado: caixaAberto.saldo_final
+    return res.status(200).json({
+      message: "Venda alterada com sucesso.",
+      venda: vendaExistente,
+      saldoCaixaAtualizado: caixaAberto ? caixaAberto.saldo_final : null
     });
   } catch (error) {
     await session.abortTransaction();
-    console.error('Erro ao alterar venda:', error);
-    res.status(500).json({ error: error.message });
+    console.error("Erro ao alterar venda:", error);
+    return res.status(500).json({ error: error.message });
   } finally {
     session.endSession();
   }

@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Schema de Cliente
 const grupoSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
@@ -15,13 +14,14 @@ const grupoSchema = new mongoose.Schema({
   },
   descricao: {
     type: String,
-    default: 'nao informado',
-  }
+  },
+  status: {
+    type: String,
+    required: true,
+    enum: ['ativo', 'cancelado'],
+  },
 });
 
-// Índice composto para garantir que o código do cliente seja único por loja e empresa
-// clienteSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_cliente: 1 }, { unique: true });
 
 const Grupos = mongoose.model('Grupos', grupoSchema);
-
 module.exports = Grupos;

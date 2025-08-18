@@ -4,11 +4,9 @@ const router = express.Router();
 const autoIncrementGrupos = require('../middlewares/autoIncrementGrupos');
 const gruposController = require('../controllers/gruposController');
 
-// Criar novo Cliente com middleware
-router.post('/grupo', autoIncrementGrupos, gruposController.createGrupos);
-router.get('/grupos', gruposController.getGrupos);
-router.get('/grupo/:id', gruposController.getGrupoById);
-router.put('/grupo/:id', gruposController.updateGrupo);
-router.delete('/grupo/:id', gruposController.deleteGrupo);
+router.post("/", autoIncrementGrupos, gruposController.createGrupos);
+router.get("/", gruposController.getGrupos);
+router.put("/:id", gruposController.updateGrupos)
+router.patch("/", gruposController.canceledGrupo)
 
 module.exports = router;

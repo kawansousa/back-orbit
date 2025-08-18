@@ -6,6 +6,7 @@ const gruposController = require('../controllers/gruposController');
 
 router.post("/", autoIncrementGrupos, gruposController.createGrupos);
 router.get("/", gruposController.getGrupos);
+router.get("/ativos", gruposController.getGruposAtivos);
 router.put("/:id", gruposController.updateGrupos)
 router.patch("/", gruposController.canceledGrupo)
 

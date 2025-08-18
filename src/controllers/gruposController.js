@@ -96,6 +96,46 @@ exports.getGrupos = async (req, res) => {
   }
 };
 
+exports.getGruposAtivos = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, status, page, limit } = req.query;
+
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 10;
+
+    if (pageNumber < 1 || limitNumber < 1) {
+      return res.status(400).json({
+        error: "Os valores de page e limit devem ser maiores que 0.",
+      });
+    }
+
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const filtros = {
+      codigo_loja,
+      codigo_empresa,
+      status: "ativo"
+    };
+
+    const grupos = await Grupos.find(filtros).skip(skip).limit(limitNumber);
+    const totalGrupos = await Grupos.countDocuments(filtros);
+
+    res.status(200).json({
+      total: totalGrupos,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(totalGrupos / limitNumber),
+      data: grupos,
+    });
+  } catch (error) {
+    console.error("Erro ao buscar grupos:", error);
+    res.status(500).json({
+      error: "Erro interno do servidor ao buscar grupos.",
+      message: error.message,
+    });
+  }
+};
+
 exports.updateGrupos = async (req, res) => {
   const validations = [
     body("codigo_loja")

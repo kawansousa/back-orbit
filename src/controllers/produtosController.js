@@ -8,17 +8,14 @@ const Cidade = require("../models/cidades.model");
 
 exports.getProdutos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
-      req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
 
-    // Verifica se os parâmetros obrigatórios foram fornecidos
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Converte os parâmetros de paginação para números
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
 
@@ -28,45 +25,54 @@ exports.getProdutos = async (req, res) => {
         .json({ error: "Os valores de page e limit devem ser maiores que 0." });
     }
 
-    // Calcula o deslocamento (skip)
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Constrói o objeto de filtros baseado no tipo de busca
     let filtros = {
       codigo_loja,
       codigo_empresa,
     };
 
-    if (searchTerm) {
+    if (searchTerm && searchTerm.trim() !== '') {
+      const termoBusca = searchTerm.trim();
+      
       if (searchType === "todos") {
-        filtros.$or = [
-          { descricao: { $regex: searchTerm, $options: "i" } },
-          {
-            codigo_produto: isNaN(searchTerm) ? null : parseInt(searchTerm, 10),
-          },
-          { codigo_barras: String(searchTerm) }, // Trata codigo_barras como string
-          { referencia: { $regex: searchTerm, $options: "i" } },
-        ].filter((condition) => condition[Object.keys(condition)[0]] !== null);
+        const conditions = [];
+        
+        conditions.push({ descricao: { $regex: termoBusca, $options: "i" } });
+        
+        if (!isNaN(termoBusca)) {
+          conditions.push({ codigo_produto: parseInt(termoBusca, 10) });
+        }
+        
+        conditions.push({ codigo_barras: String(termoBusca) });
+        
+        conditions.push({ referencia: { $regex: termoBusca, $options: "i" } });
+        
+        filtros.$or = conditions;
       } else {
-        // Busca específica por campo
         switch (searchType) {
           case "codigo_produto":
-            if (!isNaN(searchTerm)) {
-              filtros[searchType] = parseInt(searchTerm, 10);
+            if (!isNaN(termoBusca)) {
+              filtros[searchType] = parseInt(termoBusca, 10);
+            } else {
+              filtros[searchType] = -1;
             }
             break;
           case "codigo_barras":
-            filtros[searchType] = String(searchTerm); // Trata codigo_barras como string
+            filtros[searchType] = String(termoBusca);
             break;
           case "descricao":
           case "referencia":
-            filtros[searchType] = { $regex: searchTerm, $options: "i" };
+            filtros[searchType] = { $regex: termoBusca, $options: "i" };
             break;
+          default:
+            return res.status(400).json({ 
+              error: "Tipo de busca inválido. Use: todos, codigo_produto, codigo_barras, descricao, ou referencia" 
+            });
         }
       }
     }
 
-    // Pipeline de agregação para trazer o nome do grupo
     const pipeline = [
       { $match: filtros },
       { $skip: skip },
@@ -86,9 +92,9 @@ exports.getProdutos = async (req, res) => {
       },
       {
         $lookup: {
-          from: "grupos", // Nome da coleção no banco
-          localField: "grupo", // Campo no documento atual (Produto)
-          foreignField: "codigo_grupo", // Campo no documento relacionado (Grupos)
+          from: "grupos",
+          localField: "grupo",
+          foreignField: "codigo_grupo",
           as: "grupoInfo",
         },
       },
@@ -103,13 +109,11 @@ exports.getProdutos = async (req, res) => {
           },
         },
       },
-      { $unset: ["grupoInfo"] }, // Remove o campo adicional para limpar o resultado
+      { $unset: ["grupoInfo"] },
     ];
 
-    // Consulta com agregação
     const produtos = await Produto.aggregate(pipeline);
 
-    // Total de produtos para a paginação
     const totalProdutos = await Produto.countDocuments(filtros);
 
     if (produtos.length === 0) {
@@ -118,7 +122,6 @@ exports.getProdutos = async (req, res) => {
       });
     }
 
-    // Retorna os produtos junto com informações de paginação
     res.status(200).json({
       total: totalProdutos,
       page: pageNumber,
@@ -127,6 +130,7 @@ exports.getProdutos = async (req, res) => {
       data: produtos,
     });
   } catch (error) {
+    console.error('Erro na busca de produtos:', error);
     res.status(500).json({ error: error.message });
   }
 };

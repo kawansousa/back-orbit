@@ -59,7 +59,7 @@ exports.createGrupos = async (req, res) => {
 
 exports.getGrupos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
 
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
@@ -76,6 +76,39 @@ exports.getGrupos = async (req, res) => {
       codigo_loja,
       codigo_empresa,
     };
+
+    if( searchTerm && searchTerm.trim() !== "") {
+      const termoBusca = searchTerm.trim()
+
+      if (searchType === "todos") {
+        const conditions = []
+
+        if (!isNaN(termoBusca)) {
+          conditions.push({ codigo_grupo : parseInt(termoBusca, 10)})
+        }
+
+        conditions.push({ descricao: { $regex: termoBusca, $options: "i"}})
+
+        filtros.$or = conditions
+      } else {
+        switch (searchType) {
+          case "codigo_grupo" :
+            if (!isNaN(termoBusca)) {
+              filtros[searchType] = parseInt(termoBusca, 10)
+            } else {
+              filtros[searchType] = -1
+            }
+            break
+            case "descrição":
+            filtros[searchType] = { $regex: termoBusca, $options: "1"}
+            break
+            default:
+              return res.status(400).json({
+                error: "Tipo de busca inválido. Use: todos, descricao ou codigo_grupo"
+              })
+        }
+      }
+    }
 
     const grupos = await Grupos.find(filtros).skip(skip).limit(limitNumber);
     const totalGrupos = await Grupos.countDocuments(filtros);

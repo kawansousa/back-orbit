@@ -3,28 +3,32 @@ const Venda = require("../models/vendas.model");
 const Receber = require("../models/receber.model");
 const Movimentacao = require("../models/movimentacoes_caixa.model");
 const Caixa = require("../models/caixa.model");
-const Produto = require("../models/produtos.model"); 
+const Produto = require("../models/produtos.model");
 const path = require("path");
 const ejs = require("ejs");
 const puppeteer = require("puppeteer");
 const Loja = require("../models/lojas.model");
 
-const atualizarSaldoCaixa = (caixa, formasPagamento, operacao = 'adicionar') => {
+const atualizarSaldoCaixa = (
+  caixa,
+  formasPagamento,
+  operacao = "adicionar"
+) => {
   let totalDinheiro = 0;
-  
-  formasPagamento.forEach(pagamento => {
+
+  formasPagamento.forEach((pagamento) => {
     const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
-    if (meioPagamento === 'dinheiro') {
+    if (meioPagamento === "dinheiro") {
       totalDinheiro += parseFloat(pagamento.valor_pagamento);
     }
   });
 
   if (totalDinheiro > 0) {
     const saldoAnterior = caixa.saldo_final;
-    
-    if (operacao === 'adicionar') {
+
+    if (operacao === "adicionar") {
       caixa.saldo_final = parseFloat(saldoAnterior) + parseFloat(totalDinheiro);
-    } else if (operacao === 'subtrair') {
+    } else if (operacao === "subtrair") {
       caixa.saldo_final = parseFloat(saldoAnterior) - parseFloat(totalDinheiro);
     }
   }
@@ -114,10 +118,10 @@ exports.criarVenda = async (req, res) => {
     );
 
     let totalDinheiro = 0;
-    forma_pagamento.forEach(pagamento => {
+    forma_pagamento.forEach((pagamento) => {
       const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
-      
-      if (meioPagamento === 'dinheiro') {
+
+      if (meioPagamento === "dinheiro") {
         totalDinheiro += parseFloat(pagamento.valor_pagamento);
       }
     });
@@ -200,9 +204,8 @@ exports.criarVenda = async (req, res) => {
       venda: novaVenda,
       saldoCaixaAtualizado: caixa.saldo_final,
       totalDinheiroAdicionado: totalDinheiro,
-      message: 'Venda criada e caixa atualizado com sucesso'
+      message: "Venda criada e caixa atualizado com sucesso",
     });
-
   } catch (error) {
     if (session.inTransaction()) {
       await session.abortTransaction();
@@ -273,7 +276,6 @@ exports.cancelarVenda = async (req, res) => {
       origem: "venda",
     }).session(session);
 
-
     const caixaAtual = await Caixa.findOne({
       codigo_loja: venda.codigo_loja,
       codigo_empresa: venda.codigo_empresa,
@@ -304,7 +306,6 @@ exports.cancelarVenda = async (req, res) => {
           categoria_contabil: "estorno",
           historico: "Cancelamento de venda",
         });
-
 
         await novaMovimentacao.save({ session });
       } else {
@@ -388,7 +389,7 @@ exports.alterarVenda = async (req, res) => {
       $or: [
         { documento_origem: String(vendaExistente.codigo_venda) },
         { documento_origem: Number(vendaExistente.codigo_venda) },
-        { documento_origem: vendaExistente.codigo_venda }
+        { documento_origem: vendaExistente.codigo_venda },
       ],
       origem: "venda",
       codigo_loja,
@@ -398,27 +399,33 @@ exports.alterarVenda = async (req, res) => {
     let movimentacaoCorreta = null;
 
     if (caixaAberto) {
-      movimentacaoCorreta = todasMovimentacoes.find(mov =>
-        mov.caixaId.toString() === caixaAberto._id.toString()
+      movimentacaoCorreta = todasMovimentacoes.find(
+        (mov) => mov.caixaId.toString() === caixaAberto._id.toString()
       );
 
       if (!movimentacaoCorreta) {
         const primeiraMovimentacao = todasMovimentacoes[0];
 
         if (primeiraMovimentacao) {
-          const saoIguais = String(primeiraMovimentacao.codigo_caixa) === String(caixaAberto.codigo_caixa);
+          const saoIguais =
+            String(primeiraMovimentacao.codigo_caixa) ===
+            String(caixaAberto.codigo_caixa);
 
           if (!saoIguais) {
             await session.abortTransaction();
             return res.status(400).json({
-              message: `Alteração só é permitida no mesmo caixa. Venda foi realizada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`
+              message: `Alteração só é permitida no mesmo caixa. Venda foi realizada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`,
             });
           }
         }
       }
 
       const formasPagamentoAntigas = vendaExistente.forma_pagamento || [];
-      const totalDinheiroRevertido = atualizarSaldoCaixa(caixaAberto, formasPagamentoAntigas, 'subtrair');
+      const totalDinheiroRevertido = atualizarSaldoCaixa(
+        caixaAberto,
+        formasPagamentoAntigas,
+        "subtrair"
+      );
     }
 
     for (const item of vendaExistente.itens) {
@@ -429,9 +436,13 @@ exports.alterarVenda = async (req, res) => {
       }).session(session);
 
       if (produto) {
-        const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+        const configuracaoEstoque =
+          produto.configuracoes[0]?.controla_estoque || "SIM";
 
-        if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
+        if (
+          configuracaoEstoque === "SIM" ||
+          configuracaoEstoque === "PERMITE_NEGATIVO"
+        ) {
           produto.estoque[0].estoque += item.quantidade;
           await produto.save({ session });
         }
@@ -442,7 +453,7 @@ exports.alterarVenda = async (req, res) => {
       $or: [
         { documento_origem: String(codigo_venda) },
         { documento_origem: Number(codigo_venda) },
-        { documento_origem: codigo_venda }
+        { documento_origem: codigo_venda },
       ],
       origem: "venda",
       codigo_loja,
@@ -453,7 +464,7 @@ exports.alterarVenda = async (req, res) => {
       $or: [
         { documento_origem: String(codigo_venda) },
         { documento_origem: Number(codigo_venda) },
-        { documento_origem: codigo_venda }
+        { documento_origem: codigo_venda },
       ],
       origem: "venda",
       codigo_loja,
@@ -474,7 +485,8 @@ exports.alterarVenda = async (req, res) => {
         });
       }
 
-      const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+      const configuracaoEstoque =
+        produto.configuracoes[0]?.controla_estoque || "SIM";
 
       if (configuracaoEstoque === "SIM") {
         if (produto.estoque[0].estoque < item.quantidade) {
@@ -494,12 +506,14 @@ exports.alterarVenda = async (req, res) => {
     }
 
     vendaExistente.cliente = cliente || vendaExistente.cliente;
-    vendaExistente.cliente_sem_cadastro = cliente_sem_cadastro || vendaExistente.cliente_sem_cadastro;
+    vendaExistente.cliente_sem_cadastro =
+      cliente_sem_cadastro || vendaExistente.cliente_sem_cadastro;
     vendaExistente.vendedor = vendedor || vendaExistente.vendedor;
     vendaExistente.tipo = tipo || vendaExistente.tipo;
     vendaExistente.observacoes = observacoes || vendaExistente.observacoes;
     vendaExistente.itens = itens || vendaExistente.itens;
-    vendaExistente.forma_pagamento = forma_pagamento || vendaExistente.forma_pagamento;
+    vendaExistente.forma_pagamento =
+      forma_pagamento || vendaExistente.forma_pagamento;
     vendaExistente.valores = valores || vendaExistente.valores;
     vendaExistente.historico = historico || vendaExistente.historico;
     vendaExistente.parcelas = parcelas || vendaExistente.parcelas;
@@ -508,7 +522,11 @@ exports.alterarVenda = async (req, res) => {
     await vendaExistente.save({ session });
 
     if (caixaAberto) {
-      const totalDinheiroAdicionado = atualizarSaldoCaixa(caixaAberto, forma_pagamento, 'adicionar');
+      const totalDinheiroAdicionado = atualizarSaldoCaixa(
+        caixaAberto,
+        forma_pagamento,
+        "adicionar"
+      );
     }
 
     if (forma_pagamento && forma_pagamento.length > 0) {
@@ -578,7 +596,7 @@ exports.alterarVenda = async (req, res) => {
     return res.status(200).json({
       message: "Venda alterada com sucesso.",
       venda: vendaExistente,
-      saldoCaixaAtualizado: caixaAberto ? caixaAberto.saldo_final : null
+      saldoCaixaAtualizado: caixaAberto ? caixaAberto.saldo_final : null,
     });
   } catch (error) {
     await session.abortTransaction();
@@ -599,94 +617,242 @@ exports.listarVendas = async (req, res) => {
       limit = 20,
       dataInicio,
       dataFim,
+      searchTerm,
+      searchType,
     } = req.query;
 
     if (!codigo_empresa) {
-      return res.status(400).json({
-        message: "Código da empresa é obrigatório",
-      });
+      return res
+        .status(400)
+        .json({ message: "Código da empresa é obrigatório" });
     }
-
     if (!codigo_loja) {
-      return res.status(400).json({
-        message: "Código da loja é obrigatório",
-      });
+      return res.status(400).json({ message: "Código da loja é obrigatório" });
     }
 
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
 
     if (isNaN(pageNumber) || pageNumber < 1) {
-      return res.status(400).json({
-        message: "Número de página inválido",
-      });
+      return res.status(400).json({ message: "Número de página inválido" });
     }
-
     if (isNaN(limitNumber) || limitNumber < 1 || limitNumber > 100) {
       return res.status(400).json({
         message: "Limite de registros inválido (deve estar entre 1 e 100)",
       });
     }
 
-    const query = {
+    const baseMatch = {
       codigo_empresa,
       codigo_loja,
+      ...(status ? { status } : {}),
+      ...(dataInicio || dataFim
+        ? {
+            data_emissao: {
+              ...(dataInicio ? { $gte: new Date(dataInicio) } : {}),
+              ...(dataFim ? { $lte: new Date(dataFim) } : {}),
+            },
+          }
+        : {}),
     };
 
-    if (status) {
-      const validStatuses = ["pendente", "concluido", "cancelado"];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({
-          message: "Status de venda inválido",
-        });
-      }
-      query.status = status;
+    if (!searchTerm || searchTerm.trim() === "") {
+      const vendas = await Venda.find(baseMatch)
+        .populate({
+          path: "cliente",
+          select: "nome codigo_cliente",
+        })
+        .sort({ codigo_venda: -1, data_emissao: -1 })
+        .skip((pageNumber - 1) * limitNumber)
+        .limit(limitNumber)
+        .lean();
+
+      const total = await Venda.countDocuments(baseMatch);
+
+      return res.status(200).json({
+        data: vendas,
+        total,
+        page: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
+        pageSize: limitNumber,
+      });
     }
 
-    if (dataInicio && dataFim) {
-      const startDate = new Date(dataInicio);
-      const endDate = new Date(dataFim);
+    const termoBusca = searchTerm.trim();
+    const validSearchTypes = [
+      "todos",
+      "codigo_venda",
+      "cliente",
+      "vendedor",
+      "tipo",
+    ];
 
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return res.status(400).json({
-          message: "Formato de data inválido",
-        });
-      }
+    if (!validSearchTypes.includes(searchType)) {
+      return res.status(400).json({
+        error:
+          "Tipo de busca inválido. Use: todos, cliente, vendedor, tipo ou codigo_venda",
+      });
+    }
 
-      if (startDate > endDate) {
-        return res.status(400).json({
-          message: "Data de início deve ser anterior ou igual à data final",
-        });
-      }
-
-      query.createdAt = {
-        $gte: startDate,
-        $lte: endDate,
+    if (searchType === "codigo_venda" && !isNaN(termoBusca)) {
+      const query = {
+        ...baseMatch,
+        codigo_venda: parseInt(termoBusca, 10),
       };
+
+      const vendas = await Venda.find(query)
+        .populate({
+          path: "cliente",
+          select: "nome codigo_cliente",
+        })
+        .sort({ codigo_venda: -1, data_emissao: -1 })
+        .skip((pageNumber - 1) * limitNumber)
+        .limit(limitNumber)
+        .lean();
+
+      const total = await Venda.countDocuments(query);
+
+      return res.status(200).json({
+        data: vendas,
+        total,
+        page: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
+        pageSize: limitNumber,
+      });
     }
 
-    const skip = (pageNumber - 1) * limitNumber;
+    if (searchType === "cliente" || searchType === "todos") {
+      const aggregatePipeline = [];
+
+      aggregatePipeline.push({
+        $match: baseMatch,
+      });
+
+      aggregatePipeline.push({
+        $lookup: {
+          from: "clientes",
+          localField: "cliente",
+          foreignField: "_id",
+          as: "cliente_populated",
+        },
+      });
+
+      aggregatePipeline.push({
+        $unwind: {
+          path: "$cliente_populated",
+          preserveNullAndEmptyArrays: true,
+        },
+      });
+
+      const orConditions = [];
+
+      if (searchType === "cliente" || searchType === "todos") {
+        orConditions.push({
+          "cliente_populated.nome": { $regex: termoBusca, $options: "i" },
+        });
+        orConditions.push({
+          "cliente_sem_cadastro.nome": { $regex: termoBusca, $options: "i" },
+        });
+      }
+
+      if (searchType === "todos" || searchType === "vendedor") {
+        orConditions.push({
+          vendedor: { $regex: termoBusca, $options: "i" },
+        });
+      }
+
+      if (searchType === "todos" || searchType === "tipo") {
+        orConditions.push({
+          tipo: { $regex: termoBusca, $options: "i" },
+        });
+      }
+
+      if (orConditions.length > 0) {
+        aggregatePipeline.push({
+          $match: {
+            $or: orConditions,
+          },
+        });
+      }
+
+      aggregatePipeline.push({
+        $addFields: {
+          cliente: {
+            $cond: {
+              if: { $ifNull: ["$cliente_populated", false] },
+              then: {
+                _id: "$cliente_populated._id",
+                nome: "$cliente_populated.nome",
+                codigo_cliente: "$cliente_populated.codigo_cliente",
+              },
+              else: "$cliente",
+            },
+          },
+        },
+      });
+
+      aggregatePipeline.push({
+        $project: {
+          cliente_populated: 0,
+        },
+      });
+
+      const totalPipeline = [
+        { $match: baseMatch },
+        {
+          $lookup: {
+            from: "clientes",
+            localField: "cliente",
+            foreignField: "_id",
+            as: "cliente_populated",
+          },
+        },
+        {
+          $unwind: {
+            path: "$cliente_populated",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $match: {
+            $or: orConditions,
+          },
+        },
+        { $count: "total" },
+      ];
+
+      const totalResult = await Venda.aggregate(totalPipeline);
+      const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+      aggregatePipeline.push(
+        { $sort: { codigo_venda: -1, data_emissao: -1 } },
+        { $skip: (pageNumber - 1) * limitNumber },
+        { $limit: limitNumber }
+      );
+
+      const vendas = await Venda.aggregate(aggregatePipeline);
+
+      return res.status(200).json({
+        data: vendas,
+        total,
+        page: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
+        pageSize: limitNumber,
+      });
+    }
+
+    const query = {
+      ...baseMatch,
+      [searchType]: { $regex: termoBusca, $options: "i" },
+    };
 
     const vendas = await Venda.find(query)
       .populate({
         path: "cliente",
         select: "nome codigo_cliente",
-        match: { codigo_empresa, codigo_loja },
       })
-      .populate({
-        path: "vendedor",
-        select: "name", 
-        match: {
-          acesso_loja: {
-            $elemMatch: {
-              codigo_loja: codigo_loja,
-              "codigo_empresas.codigo": codigo_empresa,
-            },
-          },
-        },
-      })
-      .sort({ codigo_venda: -1, createdAt: -1 }) 
-      .skip(skip)
+      .sort({ codigo_venda: -1, data_emissao: -1 })
+      .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber)
       .lean();
 
@@ -718,14 +884,12 @@ exports.getVendaById = async (req, res) => {
       });
     }
 
-    
     const venda = await Venda.findOne({
       _id: req.params.id,
       codigo_loja,
       codigo_empresa,
     });
 
-   
     if (!venda) {
       return res.status(404).json({
         error: "Cliente não encontrado para essa loja e empresa.",

@@ -3,7 +3,8 @@ const Os = require("../models/os.model");
 
 exports.listaMecanicos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
+      req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -27,15 +28,46 @@ exports.listaMecanicos = async (req, res) => {
       codigo_empresa,
     };
 
-    if (searchTerm) {
-      if (searchType === 'todos') {
-        filtros.$or = [
-          { nome: { $regex: searchTerm, $options: 'i' } },
-          { especialidade: { $regex: searchTerm, $options: 'i' } },
-          { telefone: { $regex: searchTerm, $options: 'i' } },
-        ];
+    if ((searchTerm && searchTerm.trim()) || "") {
+      const termoBusca = searchTerm.trim();
+      if (searchType === "todos") {
+        const conditions = [];
+
+        if (!isNaN(termoBusca)) {
+          conditions.push({ codigo_mecanico: parseInt(termoBusca, 10) });
+        }
+        if (!isNaN(termoBusca)) {
+          conditions.push({ telefone: parseInt(termoBusca, 10) });
+        }
+
+        conditions.push({ nome: { $regex: termoBusca, $options: "i" } });
+        conditions.push({
+          especialidade: { $regex: termoBusca, $options: "i" },
+        });
+        conditions.push({ status: { $regex: termoBusca, $options: "i" } });
+
+        filtros.$or = conditions;
       } else {
-        filtros[searchType] = { $regex: searchTerm, $options: 'i' };
+        switch (searchType) {
+          case "codigo_mecanico":
+          case "telefone":
+            if (!isNaN(termoBusca)) {
+              filtros[searchType] = parseInt(termoBusca, 10);
+            } else {
+              filtros[searchType] = -1;
+            }
+            break;
+          case "nome":
+          case "especialidade":
+          case "status":
+            filtros[searchType] = { $regex: termoBusca, $options: "i" };
+            break;
+          default:
+            res.status(400).json({
+              error:
+                "Tipo de busca inválido. Use: todos, nome, especialidade, telefone, status ou codigo_mecanico",
+            });
+        }
       }
     }
 
@@ -53,12 +85,10 @@ exports.listaMecanicos = async (req, res) => {
       data: mecanicos,
     });
   } catch (error) {
-    console.error("Erro ao listar mecânicos:", error); 
+    console.error("Erro ao listar mecânicos:", error);
     res.status(500).json({ error: error.message });
   }
 };
-
-
 
 exports.createMecanico = async (req, res) => {
   try {
@@ -133,7 +163,15 @@ exports.getMecanicosById = async (req, res) => {
 
 exports.updateMecanico = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, nome, especialidade, telefone, comissao, status } = req.body;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      nome,
+      especialidade,
+      telefone,
+      comissao,
+      status,
+    } = req.body;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -141,7 +179,13 @@ exports.updateMecanico = async (req, res) => {
       });
     }
 
-    if (!nome && !especialidade && !telefone && comissao === undefined && !status) {
+    if (
+      !nome &&
+      !especialidade &&
+      !telefone &&
+      comissao === undefined &&
+      !status
+    ) {
       return res.status(400).json({
         error: "Pelo menos um campo deve ser fornecido para atualização.",
       });
@@ -152,11 +196,18 @@ exports.updateMecanico = async (req, res) => {
     }
 
     if (especialidade && especialidade.trim() === "") {
-      return res.status(400).json({ error: "Especialidade não pode estar vazia" });
+      return res
+        .status(400)
+        .json({ error: "Especialidade não pode estar vazia" });
     }
 
-    if (comissao !== undefined && (isNaN(comissao) || comissao < 0 || comissao > 100)) {
-      return res.status(400).json({ error: "Comissão deve estar entre 0 e 100" });
+    if (
+      comissao !== undefined &&
+      (isNaN(comissao) || comissao < 0 || comissao > 100)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Comissão deve estar entre 0 e 100" });
     }
 
     const updateData = {
@@ -233,11 +284,12 @@ exports.relatorioMecanicos = async (req, res) => {
       });
     }
 
-    const adicionarZeroEsquerda = (n) =>
-      String(n).padStart(2, "0");
+    const adicionarZeroEsquerda = (n) => String(n).padStart(2, "0");
 
     const formatarDataParaYMD = (data) =>
-      `${data.getFullYear()}-${adicionarZeroEsquerda(data.getMonth() + 1)}-${adicionarZeroEsquerda(data.getDate())}`;
+      `${data.getFullYear()}-${adicionarZeroEsquerda(
+        data.getMonth() + 1
+      )}-${adicionarZeroEsquerda(data.getDate())}`;
 
     const dataHoje = new Date();
     const dataTrintaDiasAtras = new Date();
@@ -267,7 +319,7 @@ exports.relatorioMecanicos = async (req, res) => {
       codigo_empresa,
       status: "faturado",
       dataAbertura: { $gte: dataInicioFiltro, $lte: dataFimFiltro },
-    }).populate('cliente', 'nome'); 
+    }).populate("cliente", "nome");
 
     const relatorio = await Promise.all(
       mecanicos.map(async (mecanico) => {
@@ -325,7 +377,11 @@ exports.relatorioMecanicos = async (req, res) => {
             );
 
             const obterNomeCliente = () => {
-              if (os.cliente && typeof os.cliente === 'object' && os.cliente.nome) {
+              if (
+                os.cliente &&
+                typeof os.cliente === "object" &&
+                os.cliente.nome
+              ) {
                 return os.cliente.nome;
               }
               if (os.cliente_sem_cadastro && os.cliente_sem_cadastro.nome) {

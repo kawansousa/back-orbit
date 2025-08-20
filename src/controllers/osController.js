@@ -35,8 +35,7 @@ const atualizarSaldoCaixa = (caixa, formasPagamento, operacao = 'adicionar') => 
 
 exports.listaOs = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
-      req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -54,60 +53,126 @@ exports.listaOs = async (req, res) => {
     }
 
     const skip = (pageNumber - 1) * limitNumber;
+    const baseMatch = { codigo_loja, codigo_empresa };
 
-    const filtros = {
-      codigo_loja,
-      codigo_empresa,
-    };
+    const aggregatePipeline = [];
 
-    if (searchTerm) {
+    aggregatePipeline.push({ $match: baseMatch });
+
+    aggregatePipeline.push({
+      $lookup: {
+        from: "clientes",
+        localField: "cliente",
+        foreignField: "_id",
+        as: "cliente_populated",
+      },
+    });
+
+    aggregatePipeline.push({
+      $unwind: {
+        path: "$cliente_populated",
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    aggregatePipeline.push({
+      $addFields: {
+        cliente: {
+          $cond: {
+            if: { $ifNull: ["$cliente_populated", false] },
+            then: {
+              _id: "$cliente_populated._id",
+              nome: "$cliente_populated.nome",
+              codigo_cliente: "$cliente_populated.codigo_cliente",
+            },
+            else: "$cliente_sem_cadastro",
+          },
+        },
+      },
+    });
+
+    const orConditions = [];
+    if (searchTerm && searchTerm.trim() !== "") {
+      const termoBusca = searchTerm.trim();
       if (searchType === "codigo") {
-        const codigoNumerico = parseInt(searchTerm, 10);
+        const codigoNumerico = parseInt(termoBusca, 10);
         if (!isNaN(codigoNumerico)) {
-          filtros.codigo_os = codigoNumerico;
+          orConditions.push({ codigo_os: codigoNumerico });
         } else {
-          filtros.codigo_os = { $regex: searchTerm, $options: "i" };
+          orConditions.push({ codigo_os: { $regex: termoBusca, $options: "i" } });
         }
       } else if (searchType === "cliente") {
-        filtros.$or = [
-          { "cliente.nome": { $regex: searchTerm, $options: "i" } },
-          {
-            "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" },
-          },
-        ];
+        orConditions.push({ "cliente.nome": { $regex: termoBusca, $options: "i" } });
       } else if (searchType === "responsavel") {
-        filtros.responsavel = { $regex: searchTerm, $options: "i" };
+        orConditions.push({ responsavel: { $regex: termoBusca, $options: "i" } });
       } else {
-        const codigoNumerico = parseInt(searchTerm, 10);
-        filtros.$or = [
-          ...(!isNaN(codigoNumerico) ? [{ codigo_os: codigoNumerico }] : []),
-          { codigo_os: { $regex: searchTerm, $options: "i" } },
-          { "cliente.nome": { $regex: searchTerm, $options: "i" } },
-          {
-            "cliente_sem_cadastro.nome": { $regex: searchTerm, $options: "i" },
-          },
-          { responsavel: { $regex: searchTerm, $options: "i" } },
-        ];
+        const codigoNumerico = parseInt(termoBusca, 10);
+        if (!isNaN(codigoNumerico)) {
+          orConditions.push({ codigo_os: codigoNumerico });
+        }
+        orConditions.push({ codigo_os: { $regex: termoBusca, $options: "i" } });
+        orConditions.push({ "cliente.nome": { $regex: termoBusca, $options: "i" } });
+        orConditions.push({ responsavel: { $regex: termoBusca, $options: "i" } });
       }
     }
 
+    if (orConditions.length > 0) {
+      aggregatePipeline.push({ $match: { $or: orConditions } });
+    }
 
-    const lista = await Os.find(filtros)
-      .skip(skip)
-      .limit(limitNumber)
-      .populate({
-        path: "cliente",
-        select: "nome codigo_cliente",
-        match: { codigo_empresa, codigo_loja },
-      })
-      .sort({ dataAbertura: -1 });
+    const totalPipeline = [
+      { $match: baseMatch },
+      {
+        $lookup: {
+          from: "clientes",
+          localField: "cliente",
+          foreignField: "_id",
+          as: "cliente_populated",
+        },
+      },
+      {
+        $unwind: {
+          path: "$cliente_populated",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          cliente: {
+            $cond: {
+              if: { $ifNull: ["$cliente_populated", false] },
+              then: {
+                _id: "$cliente_populated._id",
+                nome: "$cliente_populated.nome",
+                codigo_cliente: "$cliente_populated.codigo_cliente",
+              },
+              else: "$cliente_sem_cadastro",
+            },
+          },
+        },
+      },
+    ];
 
-    const total = await Os.countDocuments(filtros);
+    if (orConditions.length > 0) {
+      totalPipeline.push({ $match: { $or: orConditions } });
+    }
+
+    totalPipeline.push({ $count: "total" });
+
+    const totalResult = await Os.aggregate(totalPipeline);
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+    aggregatePipeline.push(
+      { $sort: { dataAbertura: -1 } },
+      { $skip: skip },
+      { $limit: limitNumber }
+    );
+
+    const lista = await Os.aggregate(aggregatePipeline);
 
     if (lista.length === 0 && searchTerm) {
       return res.status(404).json({
-        message:
-          "Nenhuma ordem de serviço encontrada para os filtros fornecidos.",
+        message: "Nenhuma ordem de serviço encontrada para os filtros fornecidos.",
         total: 0,
         page: pageNumber,
         limit: limitNumber,

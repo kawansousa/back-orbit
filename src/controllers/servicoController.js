@@ -28,22 +28,51 @@ exports.listaServicos = async (req, res) => {
       codigo_empresa,
     };
 
-/*     // Adiciona filtro de busca com base no searchType e searchTerm
-    if (searchTerm) {
+    // Adiciona filtro de busca com base no searchType e searchTerm
+    if ((searchTerm && searchTerm.trim()) || "") {
+      const termoBusca = searchTerm.trim();
       if (searchType === "todos") {
-        filtros.$or = [
-          { codigo_servico: searchTerm },
-          { descricao: { $regex: searchTerm, $options: "i" } },
-          { preco: parseFloat(searchTerm) },
-        ];
-      } else if (searchType === "nome") {
-        filtros.codigo_servico = searchTerm;
-      } else if (searchType === "descricao") {
-        filtros.descricao = { $regex: searchTerm, $options: "i" };
-      } else if (searchType === "preco") {
-        filtros.preco = parseFloat(searchTerm);
+        const conditions = [];
+
+        if (!isNaN(termoBusca)) {
+          conditions.push({ codigo_servico: parseInt(termoBusca, 10) });
+        }
+
+        if (!isNaN(termoBusca)) {
+          conditions.push({ preco: parseInt(termoBusca, 10) });
+        }
+
+        conditions.push({ descricao: { $regex: termoBusca, $options: "i" } });
+        conditions.push({ status: { $regex: termoBusca, $options: "i" } });
+
+        filtros.$or = conditions;
+      } else {
+        switch (searchType) {
+          case "codigo_servico" :
+            if (!isNaN(termoBusca)) {
+              filtros[searchType] = parseInt(termoBusca, 10)
+            } else {
+              filtros[searchType] = -1
+            }
+          break
+          case "preco" : 
+          if (!isNaN(termoBusca)) {
+            filtros[searchType] = parseInt(termoBusca, 10)
+          } else {
+            filtros[searchType] = -1
+          }
+          break
+          case "descricao" :
+          case "status" : 
+          filtros[searchType] = { $regex: termoBusca, $options: "i"}
+          break
+          default: 
+            return  res.status(400).json({
+              error: "Tipo de busca inválido. Use: todos, descricao, status, preco ou codigo_grupo"
+            })
+        }
       }
-    } */
+    }
 
     const servicos = await Servicos.find(filtros).skip(skip).limit(limitNumber);
     const totalServicos = await Servicos.countDocuments(filtros);

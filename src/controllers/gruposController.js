@@ -100,7 +100,7 @@ exports.getGrupos = async (req, res) => {
             }
             break
             case "descrição":
-            filtros[searchType] = { $regex: termoBusca, $options: "1"}
+            filtros[searchType] = { $regex: termoBusca, $options: "i"}
             break
             default:
               return res.status(400).json({

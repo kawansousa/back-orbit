@@ -5,4 +5,5 @@ const incrementarCodigos = require("../middlewares/incrementarCodigos");
 
 router.post("/", incrementarCodigos, lojasController.createLoja);
 router.post("/empresa", incrementarCodigos, lojasController.createEmpresa);
+router.get("/empresa", lojasController.getEmpresaByLoja);
 module.exports = router;

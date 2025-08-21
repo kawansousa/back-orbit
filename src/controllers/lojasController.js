@@ -572,3 +572,44 @@ exports.createEmpresa = async (req, res) => {
     });
   }
 };
+
+exports.getEmpresaByLoja = async (req, res) => {
+  try {
+    const { codigo_loja, empresaId } = req.query;
+
+    if (!codigo_loja || !empresaId) {
+      return res.status(400).json({
+        error: "Parâmetros inválidos",
+        message: "É necessário informar codigo_loja e empresaId",
+      });
+    }
+
+    // Buscar a loja pelo código
+    const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
+
+    if (!loja) {
+      return res.status(404).json({
+        error: "Loja não encontrada",
+        message: "Nenhuma loja encontrada com esse código",
+      });
+    }
+
+    // Procurar empresa dentro da loja
+    const empresa = loja.empresas.id(empresaId);
+
+    if (!empresa) {
+      return res.status(404).json({
+        error: "Empresa não encontrada",
+        message: "Nenhuma empresa encontrada com esse ID nessa loja",
+      });
+    }
+
+    res.json(empresa);
+  } catch (error) {
+    console.error("Erro ao buscar empresa da loja:", error);
+    res.status(500).json({
+      error: "Erro interno do servidor",
+      message: "Não foi possível buscar a empresa",
+    });
+  }
+};

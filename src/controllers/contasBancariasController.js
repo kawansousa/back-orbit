@@ -1,11 +1,10 @@
-const ContasBancarias = require('../models/contas_bancarias.model');
-const MovimentacaoBanco = require('../models/movimentacoes_banco.model');
-const path = require('path');
-const ejs = require('ejs');
-const puppeteer = require('puppeteer');
+const ContasBancarias = require("../models/contas_bancarias.model");
+const MovimentacaoBanco = require("../models/movimentacoes_banco.model");
+const path = require("path");
+const ejs = require("ejs");
+const puppeteer = require("puppeteer");
 
-// Adicionar uma nova conta ao ContasBancarias
-exports.adicionarContaBnacaria = async (req, res) => {
+exports.adicionarContaBancaria = async (req, res) => {
   try {
     const {
       codigo_loja,
@@ -14,20 +13,21 @@ exports.adicionarContaBnacaria = async (req, res) => {
       codigo_conta_bancaria,
       status,
       agencia,
-      conta
+      conta,
+      tipo,
+      limite,
+      saldo,
     } = req.body;
-
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
     if (!conta_bancaria) {
-      return res.status(400).json({ error: 'A descricao é obrigatória.' });
+      return res.status(400).json({ error: "A descricao é obrigatória." });
     }
-
 
     const ContaExistente = await ContasBancarias.findOne({
       codigo_loja,
@@ -37,14 +37,13 @@ exports.adicionarContaBnacaria = async (req, res) => {
       ],
     });
 
-    if (ContaExistente) {
-      if (produtoExistente.conta_bancaria == conta_bancaria) {
-        return res.status(409).json({
-          error: 'Já existe um item cadastrado com essa descrição.',
-        });
-      }
-    }
-
+    // if (ContaExistente) {
+    //   if (produtoExistente.conta_bancaria == conta_bancaria) {
+    //     return res.status(409).json({
+    //       error: 'Já existe um item cadastrado com essa descrição.',
+    //     });
+    //   }
+    // }
 
     const novaContasBancarias = new ContasBancarias({
       codigo_loja,
@@ -53,7 +52,10 @@ exports.adicionarContaBnacaria = async (req, res) => {
       codigo_conta_bancaria,
       status,
       agencia,
-      conta
+      conta,
+      tipo,
+      limite,
+      saldo,
     });
 
     await novaContasBancarias.save();
@@ -67,15 +69,71 @@ exports.adicionarContaBnacaria = async (req, res) => {
 // Listar todas as contas do ContasBancarias
 exports.listarContasBancarias = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.query;
+    const { codigo_loja, codigo_empresa, searchTerm, searchType } = req.query;
 
-    const ContaBancaria = await ContasBancarias.find({ codigo_loja, codigo_empresa });
+    const filtros = {
+      codigo_loja,
+      codigo_empresa,
+    };
 
-    if (!ContaBancaria) {
-      return res.status(404).json({ message: 'ContaBancaria não encontrado para esta loja e empresa' });
+    if (searchTerm && searchTerm.trim()) {
+      // Removido || ""
+      const termoBusca = searchTerm.trim();
+
+      if (searchType === "todos") {
+        const conditions = [];
+
+        if (!isNaN(termoBusca)) {
+          conditions.push({ limite: parseInt(termoBusca, 10) });
+          conditions.push({ saldo: parseInt(termoBusca, 10) });
+        }
+
+        conditions.push({
+          conta_bancaria: { $regex: termoBusca, $options: "i" },
+        });
+        conditions.push({ tipo: { $regex: termoBusca, $options: "i" } });
+        conditions.push({ agencia: { $regex: termoBusca, $options: "i" } });
+        conditions.push({ conta: { $regex: termoBusca, $options: "i" } });
+
+        filtros.$or = conditions;
+      } else {
+        switch (searchType) {
+          case "codigo_conta_bancaria":
+          case "limite":
+          case "saldo":
+            if (!isNaN(termoBusca)) {
+              filtros[searchType] = parseInt(termoBusca, 10); // Corrigido: searchTpe -> searchType
+            } else {
+              filtros[searchType] = -1;
+            }
+            break;
+          case "conta_bancaria":
+          case "tipo":
+          case "status":
+          case "agencia":
+          case "conta":
+            filtros[searchType] = { $regex: termoBusca, $options: "i" };
+            break;
+          default:
+            return res.status(400).json({
+              // Adicionado return
+              error:
+                "Tipo de busca inválido. Use: todos, codigo_conta_bancaria, limite, saldo, conta_bancaria, tipo, status, agencia ou conta",
+            });
+        }
+      }
     }
 
-    res.status(200).json(ContaBancaria);
+    const contasBancarias = await ContasBancarias.find(filtros); // Renomeado para plural
+
+    if (!contasBancarias || contasBancarias.length === 0) {
+      // Verificação melhorada
+      return res.status(404).json({
+        message: "Contas bancárias não encontradas para esta loja e empresa",
+      });
+    }
+
+    res.status(200).json(contasBancarias);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -83,16 +141,13 @@ exports.listarContasBancarias = async (req, res) => {
 
 // Atualizar uma conta no ContasBancarias
 exports.atualizarContaBancaria = async (req, res) => {
-
-  const {
-    codigo_loja,
-    codigo_empresa,
-  } = req.body;
+  const { codigo_loja, codigo_empresa } = req.body;
 
   try {
-
     if (!codigo_loja || !codigo_empresa) {
-      return res.status(400).json({ error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' });
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
     }
 
     const updatedProduto = await ContasBancarias.findOneAndUpdate(
@@ -102,7 +157,7 @@ exports.atualizarContaBancaria = async (req, res) => {
     );
 
     if (!updatedProduto) {
-      return res.status(404).json({ message: 'Conta não encontrada' });
+      return res.status(404).json({ message: "Conta não encontrada" });
     }
 
     await updatedProduto.save();
@@ -115,42 +170,42 @@ exports.atualizarContaBancaria = async (req, res) => {
 // Excluir uma conta do ContasBancarias
 exports.excluirContaBancaria = async (req, res) => {
   try {
-    const {
+    const { codigo_loja, codigo_empresa, tipo_conta, codigo_pai } = req.body;
+
+    const ContasBancarias = await ContasBancarias.findOne({
       codigo_loja,
       codigo_empresa,
-      tipo_conta,
-      codigo_pai
-    } = req.body;
-
-    const ContasBancarias = await ContasBancarias.findOne({ codigo_loja, codigo_empresa });
+    });
 
     if (!ContasBancarias) {
-      return res.status(404).json({ message: 'ContasBancarias não encontrado para esta loja e empresa' });
+      return res.status(404).json({
+        message: "ContasBancarias não encontrado para esta loja e empresa",
+      });
     }
 
     let conta;
     switch (tipo_conta) {
-      case 'receitas_operacional':
+      case "receitas_operacional":
         conta = ContasBancarias.receitas_operacional.id(codigo_pai);
         break;
-      case 'deducoes':
+      case "deducoes":
         conta = ContasBancarias.deducoes.id(codigo_pai);
         break;
-      case 'custo':
+      case "custo":
         conta = ContasBancarias.custo.id(codigo_pai);
         break;
-      case 'despesas_operacionais':
+      case "despesas_operacionais":
         conta = ContasBancarias.despesas_operacionais.id(codigo_pai);
         break;
-      case 'outras_dispesas_receitas':
+      case "outras_dispesas_receitas":
         conta = ContasBancarias.outras_dispesas_receitas.id(codigo_pai);
         break;
       default:
-        return res.status(400).json({ message: 'Tipo de conta inválido' });
+        return res.status(400).json({ message: "Tipo de conta inválido" });
     }
 
     if (!conta) {
-      return res.status(404).json({ message: 'Conta não encontrada' });
+      return res.status(404).json({ message: "Conta não encontrada" });
     }
 
     conta.remove();
@@ -167,50 +222,55 @@ exports.listarContaBancaria = async (req, res) => {
     const { codigo_loja, codigo_empresa } = req.query;
 
     if (!codigo_loja || !codigo_empresa) {
-      console.error('Faltando codigo_loja ou codigo_empresa');
+      console.error("Faltando codigo_loja ou codigo_empresa");
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    const ContasBancarias = await ContasBancarias.findOne({ codigo_loja, codigo_empresa });
+    const ContasBancarias = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+    });
 
     if (!ContasBancarias) {
-      console.error('ContasBancarias não encontrado');
+      console.error("ContasBancarias não encontrado");
       return res.status(404).json({
-        error: 'ContasBancarias não encontrado.',
+        error: "ContasBancarias não encontrado.",
       });
     }
 
-    const templatePath = path.join(__dirname, '../views/ContasBancarias.ejs');
+    const templatePath = path.join(__dirname, "../views/ContasBancarias.ejs");
     const html = await ejs.renderFile(templatePath, { ContasBancarias });
 
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
 
     const pdfBuffer = await page.pdf({
-      format: 'A4',
+      format: "A4",
       printBackground: true,
       margin: {
-        top: '20px',
-        right: '20px',
-        bottom: '20px',
-        left: '20px'
+        top: "20px",
+        right: "20px",
+        bottom: "20px",
+        left: "20px",
       },
-      preferCSSPageSize: true
+      preferCSSPageSize: true,
     });
 
     await browser.close();
 
-    res.setHeader('Content-Disposition', 'attachment; filename=ContasBancarias.pdf');
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=ContasBancarias.pdf"
+    );
     res.end(pdfBuffer);
-
   } catch (error) {
-    console.error('Erro ao gerar PDF:', error);
+    console.error("Erro ao gerar PDF:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -233,11 +293,11 @@ exports.registrarMovimentacaoBanco = async (req, res) => {
     const contasBancarias = await ContasBancarias.findOne({
       codigo_loja,
       codigo_empresa,
-      conta_padrao: true
+      conta_padrao: true,
     });
 
     if (!contasBancarias || contasBancarias.conta_padrao !== true) {
-      return res.status(400).json({ message: 'Caixa não está aberto' });
+      return res.status(400).json({ message: "Caixa não está aberto" });
     }
 
     const novaMovimentacaoBanco = new MovimentacaoBanco({
@@ -255,7 +315,6 @@ exports.registrarMovimentacaoBanco = async (req, res) => {
       obsevacao,
     });
 
-
     await novaMovimentacaoBanco.save();
     res.status(201).json(novaMovimentacaoBanco);
   } catch (error) {
@@ -270,7 +329,7 @@ exports.listaMovimentacaoContaBancaria = async (req, res) => {
     const caixa = await MovimentacaoBanco.findById(caixaId);
 
     if (!caixa) {
-      return res.status(404).json({ message: 'Caixa não encontrado' });
+      return res.status(404).json({ message: "Caixa não encontrado" });
     }
 
     // Find all transactions for this cash register
@@ -278,11 +337,11 @@ exports.listaMovimentacaoContaBancaria = async (req, res) => {
 
     // Calculate summary statistics
     const totalReceitas = movimentacoes
-      .filter(mov => mov.tipo_movimentacao === 'entrada')
+      .filter((mov) => mov.tipo_movimentacao === "entrada")
       .reduce((sum, mov) => sum + mov.valor, 0);
 
     const totalDespesas = movimentacoes
-      .filter(mov => mov.tipo_movimentacao === 'saida')
+      .filter((mov) => mov.tipo_movimentacao === "saida")
       .reduce((sum, mov) => sum + mov.valor, 0);
 
     // Calculate payment method totals
@@ -293,7 +352,10 @@ exports.listaMovimentacaoContaBancaria = async (req, res) => {
     }, {});
 
     // Calculate total movement (sum of all payment methods)
-    const total_movimento = Object.values(pagamentoStats).reduce((sum, valor) => sum + valor, 0);
+    const total_movimento = Object.values(pagamentoStats).reduce(
+      (sum, valor) => sum + valor,
+      0
+    );
 
     // Calculate total movement including initial balance
     const movimentacao_total = total_movimento + caixa.saldo_inicial;
@@ -308,10 +370,32 @@ exports.listaMovimentacaoContaBancaria = async (req, res) => {
         totalDespesas,
         pagamentoStats,
         total_movimento,
-        movimentacao_total
-      }
+        movimentacao_total,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};
+
+exports.saldoTotalContasBancarias = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa } = req.query;
+
+    const filtros = { codigo_loja, codigo_empresa };
+
+    const contasBancarias = await ContasBancarias.find(filtros);
+
+    const saldoTotal = contasBancarias.reduce((acc, item) => {
+      return acc + (item?.saldo || 0);
+    }, 0);
+
+    res.status(200).json({
+      saldo_total: saldoTotal,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+};

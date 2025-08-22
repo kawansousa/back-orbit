@@ -1,40 +1,57 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const ContasBancariasSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
-    required: true
+    required: true,
   },
   codigo_empresa: {
     type: String,
-    required: true
+    required: true,
   },
   codigo_conta_bancaria: {
     type: Number,
+    require: true,
   },
   conta_bancaria: {
     type: String,
     required: true,
   },
+  tipo: {
+    type: String,
+    enum: ["corrente", "poupanca"],
+  },
   status: {
     type: String,
-    enum: ['ativo', 'inativo'],
-    default: 'ativo'
+    enum: ["ativo", "inativo"],
+    default: "ativo",
   },
   conta_padrao: {
     type: Boolean,
-    default: false
+    default: false,
   },
   agencia: {
     type: String,
-    required: true
+    required: true,
   },
   conta: {
     type: String,
-    default: null
-  }
+    default: null,
+    require: true,
+  },
+  limite: {
+    type: Number,
+    require: true,
+  },
+  saldo: {
+    type: Number,
+    require: true,
+  },
 });
 
-const ContasBancarias = mongoose.model('ContasBancarias', ContasBancariasSchema);
+const ContasBancarias = mongoose.model(
+  "ContasBancarias",
+  ContasBancariasSchema
+);
 
 module.exports = ContasBancarias;

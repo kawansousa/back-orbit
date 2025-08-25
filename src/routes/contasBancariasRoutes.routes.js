@@ -4,6 +4,18 @@ const contasBancariasController = require("../controllers/contasBancariasControl
 const autoIncrementContasBancariasController = require("../middlewares/autoIncrementContasBancariasController");
 const autoIncrementMovimentoBanco = require("../middlewares/autoIncrementMovimentoBanco");
 
+router.put(
+  "/definir-padrao",
+  contasBancariasController.definirContaPadrao
+);
+router.get(
+  "/conta-padrao",
+  contasBancariasController.obterContaPadrao
+);
+router.delete (
+  "/remover-padrao",
+  contasBancariasController.removerContaPadrao
+);
 router.post(
   "/",
   autoIncrementContasBancariasController,

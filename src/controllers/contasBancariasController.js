@@ -399,3 +399,112 @@ exports.saldoTotalContasBancarias = async (req, res) => {
     });
   }
 };
+
+exports.definirContaPadrao = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, codigo_conta_bancaria } = req.body;
+
+    if (!codigo_loja || !codigo_empresa || !codigo_conta_bancaria) {
+      return res.status(400).json({
+        error: "Os campos codigo_loja, codigo_empresa e codigo_conta_bancaria são obrigatórios.",
+      });
+    }
+
+    const contaExiste = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      codigo_conta_bancaria,
+    });
+
+    if (!contaExiste) {
+      return res.status(404).json({
+        error: "Conta bancária não encontrada.",
+      });
+    }
+
+    if (contaExiste.status !== 'ativo') {
+      return res.status(400).json({
+        error: "Não é possível definir como padrão uma conta inativa.",
+      });
+    }
+
+    await ContasBancarias.updateMany(
+      { codigo_loja, codigo_empresa },
+      { $unset: { conta_padrao: "" } }
+    );
+
+    const contaAtualizada = await ContasBancarias.findOneAndUpdate(
+      { codigo_loja, codigo_empresa, codigo_conta_bancaria },
+      { conta_padrao: true },
+      { new: true }
+    );
+
+    res.status(200).json({
+      message: "Conta bancária definida como padrão com sucesso.",
+      conta: contaAtualizada,
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.obterContaPadrao = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa } = req.query;
+
+    if (!codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
+    }
+
+    const contaPadrao = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      conta_padrao: true,
+    });
+
+    if (!contaPadrao) {
+      return res.status(404).json({
+        message: "Nenhuma conta padrão encontrada para esta loja e empresa.",
+      });
+    }
+
+    res.status(200).json(contaPadrao);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.removerContaPadrao = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa } = req.body;
+
+    if (!codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
+    }
+
+    const resultado = await ContasBancarias.updateMany(
+      { codigo_loja, codigo_empresa, conta_padrao: true },
+      { $unset: { conta_padrao: "" } }
+    );
+
+    if (resultado.modifiedCount === 0) {
+      return res.status(404).json({
+        message: "Nenhuma conta padrão encontrada para remover.",
+      });
+    }
+
+    res.status(200).json({
+      message: "Marcação de conta padrão removida com sucesso.",
+      contas_atualizadas: resultado.modifiedCount,
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

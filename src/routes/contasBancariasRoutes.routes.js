@@ -2,24 +2,16 @@ const express = require("express");
 const router = express.Router();
 const contasBancariasController = require("../controllers/contasBancariasController");
 const autoIncrementContasBancariasController = require("../middlewares/autoIncrementContasBancariasController");
-const autoIncrementMovimentoBanco = require("../middlewares/autoIncrementMovimentoBanco");
+const autoIncrementMovimentoBanco = require("../middlewares/autoIncrementMovimento");
 
-router.put(
-  "/definir-padrao",
-  contasBancariasController.definirContaPadrao
+
+router.get(
+  "/movimentacaoBanco",
+  contasBancariasController.listaMovimentacaoContaBancaria
 );
 router.get(
   "/conta-padrao",
   contasBancariasController.obterContaPadrao
-);
-router.delete (
-  "/remover-padrao",
-  contasBancariasController.removerContaPadrao
-);
-router.post(
-  "/",
-  autoIncrementContasBancariasController,
-  contasBancariasController.adicionarContaBancaria
 );
 router.get(
   "/", 
@@ -28,14 +20,6 @@ router.get(
 router.get(
   "/saldoTotal", 
   contasBancariasController.saldoTotalContasBancarias
-);
-router.put(
-  "/:id", 
-  contasBancariasController.atualizarContaBancaria
-);
-router.delete(
-  "/:id", 
-  contasBancariasController.excluirContaBancaria
 );
 router.get(
   "/:id", 
@@ -46,9 +30,28 @@ router.post(
   autoIncrementMovimentoBanco,
   contasBancariasController.registrarMovimentacaoBanco
 );
-router.get(
-  "/movimentacaoBanco",
-  contasBancariasController.listaMovimentacaoContaBancaria
+router.post(
+  "/",
+  autoIncrementContasBancariasController,
+  contasBancariasController.adicionarContaBancaria
+);
+
+router.put(
+  "/definir-padrao",
+  contasBancariasController.definirContaPadrao
+);
+router.put(
+  "/:id", 
+  contasBancariasController.atualizarContaBancaria
+);
+
+router.delete (
+  "/remover-padrao",
+  contasBancariasController.removerContaPadrao
+);
+router.delete(
+  "/:id", 
+  contasBancariasController.excluirContaBancaria
 );
 
 module.exports = router;

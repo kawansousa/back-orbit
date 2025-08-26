@@ -1,5 +1,5 @@
 const ContasBancarias = require("../models/contas_bancarias.model");
-const MovimentacaoBanco = require("../models/movimentacoes_banco.model");
+const MovimentacaoBanco = require("../models/movimentacoes_caixa.model");
 const path = require("path");
 const ejs = require("ejs");
 const puppeteer = require("puppeteer");
@@ -281,7 +281,7 @@ exports.registrarMovimentacaoBanco = async (req, res) => {
       codigo_loja,
       codigo_empresa,
       tipo_movimentacao,
-      codigo_movimento_banco,
+      codigo_movimento,
       valor,
       origem,
       meio_pagamento,
@@ -303,7 +303,7 @@ exports.registrarMovimentacaoBanco = async (req, res) => {
     const novaMovimentacaoBanco = new MovimentacaoBanco({
       codigo_loja: contasBancarias.codigo_loja,
       codigo_empresa: contasBancarias.codigo_empresa,
-      codigo_movimento_banco,
+      codigo_movimento,
       conta_bancaria: contasBancarias.codigo_conta_bancaria,
       tipo_movimentacao,
       valor,
@@ -324,57 +324,37 @@ exports.registrarMovimentacaoBanco = async (req, res) => {
 
 exports.listaMovimentacaoContaBancaria = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.query;
+    const { codigo_loja, codigo_empresa, conta_bancaria } = req.query;
 
-    const caixa = await MovimentacaoBanco.findById(caixaId);
+    const filtros = {
+      codigo_loja,
+      codigo_empresa,
+      conta_bancaria,
+    };
 
-    if (!caixa) {
-      return res.status(404).json({ message: "Caixa não encontrado" });
+    if (!codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
     }
 
-    // Find all transactions for this cash register
-    const movimentacoes = await MovimentacaoBanco.find({ caixaId: caixa._id });
+    if (!conta_bancaria) {
+      return res.status(400).json({
+        error: "A conta bancaria é obrigatoria"
+      })
+    }
 
-    // Calculate summary statistics
-    const totalReceitas = movimentacoes
-      .filter((mov) => mov.tipo_movimentacao === "entrada")
-      .reduce((sum, mov) => sum + mov.valor, 0);
-
-    const totalDespesas = movimentacoes
-      .filter((mov) => mov.tipo_movimentacao === "saida")
-      .reduce((sum, mov) => sum + mov.valor, 0);
-
-    // Calculate payment method totals
-    const pagamentoStats = movimentacoes.reduce((acc, mov) => {
-      const method = mov.meio_pagamento.toLowerCase();
-      acc[method] = (acc[method] || 0) + mov.valor;
-      return acc;
-    }, {});
-
-    // Calculate total movement (sum of all payment methods)
-    const total_movimento = Object.values(pagamentoStats).reduce(
-      (sum, valor) => sum + valor,
-      0
-    );
-
-    // Calculate total movement including initial balance
-    const movimentacao_total = total_movimento + caixa.saldo_inicial;
+    const movimentacoesBancarias = await MovimentacaoBanco.find(filtros);
 
     res.status(200).json({
-      caixa,
-      movimentacoes,
-      resumo: {
-        saldoAnterior: caixa.saldo_inicial,
-        saldoAtual: caixa.saldo_final,
-        totalReceitas,
-        totalDespesas,
-        pagamentoStats,
-        total_movimento,
-        movimentacao_total,
-      },
+      data: movimentacoesBancarias,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Erro ao buscar movimentações bancarias", error);
+    res.status(500).json({
+      error: "Erro interno do servidor ao buscar movimentações bancarias",
+      message: error.message,
+    });
   }
 };
 
@@ -406,7 +386,8 @@ exports.definirContaPadrao = async (req, res) => {
 
     if (!codigo_loja || !codigo_empresa || !codigo_conta_bancaria) {
       return res.status(400).json({
-        error: "Os campos codigo_loja, codigo_empresa e codigo_conta_bancaria são obrigatórios.",
+        error:
+          "Os campos codigo_loja, codigo_empresa e codigo_conta_bancaria são obrigatórios.",
       });
     }
 
@@ -422,7 +403,7 @@ exports.definirContaPadrao = async (req, res) => {
       });
     }
 
-    if (contaExiste.status !== 'ativo') {
+    if (contaExiste.status !== "ativo") {
       return res.status(400).json({
         error: "Não é possível definir como padrão uma conta inativa.",
       });
@@ -443,7 +424,6 @@ exports.definirContaPadrao = async (req, res) => {
       message: "Conta bancária definida como padrão com sucesso.",
       conta: contaAtualizada,
     });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -472,7 +452,6 @@ exports.obterContaPadrao = async (req, res) => {
     }
 
     res.status(200).json(contaPadrao);
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -503,7 +482,6 @@ exports.removerContaPadrao = async (req, res) => {
       message: "Marcação de conta padrão removida com sucesso.",
       contas_atualizadas: resultado.modifiedCount,
     });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

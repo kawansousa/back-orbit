@@ -13,7 +13,7 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
   codigo_movimento: {
     type: Number,
   },
-  conta_bancaria: {
+  codigo_conta_bancaria: {
     type: Number,
   },
   caixaId: {

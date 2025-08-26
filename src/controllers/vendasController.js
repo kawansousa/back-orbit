@@ -8,6 +8,7 @@ const path = require("path");
 const ejs = require("ejs");
 const puppeteer = require("puppeteer");
 const Loja = require("../models/lojas.model");
+const ContasBancarias = require("../models/contas_bancarias.model");
 
 const atualizarSaldoCaixa = (
   caixa,
@@ -99,36 +100,59 @@ exports.criarVenda = async (req, res) => {
       throw new Error("Caixa não está aberto");
     }
 
-    const movimentacoes = forma_pagamento.map(
-      (pagamento) =>
-        new Movimentacao({
-          codigo_loja,
-          codigo_empresa,
-          caixaId: caixa._id,
-          codigo_movimento,
-          caixa: caixa.caixa,
-          codigo_caixa: caixa.codigo_caixa,
-          tipo_movimentacao: "entrada",
-          valor: pagamento.valor_pagamento,
-          meio_pagamento: pagamento.meio_pagamento,
-          documento_origem: novaVenda.codigo_venda,
-          origem: "venda",
-          categoria_contabil: "1.1.1",
-        })
-    );
+    const contaBancariaPadrao = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      conta_padrao: true,
+    }).session(session);
+
+    const movimentacoes = forma_pagamento.map((pagamento) => {
+      const movimentacao = {
+        codigo_loja,
+        codigo_empresa,
+        caixaId: caixa._id,
+        codigo_movimento,
+        caixa: caixa.caixa,
+        codigo_caixa: caixa.codigo_caixa,
+        tipo_movimentacao: "entrada",
+        valor: pagamento.valor_pagamento,
+        meio_pagamento: pagamento.meio_pagamento,
+        documento_origem: novaVenda.codigo_venda,
+        origem: "venda",
+        categoria_contabil: "1.1.1",
+      };
+
+      const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+      if (meioPagamento === "pix" && contaBancariaPadrao) {
+        movimentacao.codigo_conta_bancaria =
+          contaBancariaPadrao.codigo_conta_bancaria;
+      }
+
+      return new Movimentacao(movimentacao);
+    });
 
     let totalDinheiro = 0;
+    let totalPix = 0;
+
     forma_pagamento.forEach((pagamento) => {
       const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
 
       if (meioPagamento === "dinheiro") {
         totalDinheiro += parseFloat(pagamento.valor_pagamento);
+      } else if (meioPagamento === "pix") {
+        totalPix += parseFloat(pagamento.valor_pagamento);
       }
     });
 
     if (totalDinheiro > 0) {
       const saldoAnterior = caixa.saldo_final;
       caixa.saldo_final = parseFloat(saldoAnterior) + parseFloat(totalDinheiro);
+    }
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      const saldoAnteriorBanco = contaBancariaPadrao.saldo || 0;
+      contaBancariaPadrao.saldo =
+        parseFloat(saldoAnteriorBanco) + parseFloat(totalPix);
     }
 
     const recebimentos = [];
@@ -161,12 +185,18 @@ exports.criarVenda = async (req, res) => {
       }
     }
 
-    await Promise.all([
+    const saveOperations = [
       ...movimentacoes.map((mov) => mov.save({ session })),
       caixa.save({ session }),
       novaVenda.save({ session }),
       ...recebimentos.map((receb) => receb.save({ session })),
-    ]);
+    ];
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      saveOperations.push(contaBancariaPadrao.save({ session }));
+    }
+
+    await Promise.all(saveOperations);
 
     for (const item of itens) {
       const produto = await Produto.findOne({
@@ -200,12 +230,24 @@ exports.criarVenda = async (req, res) => {
 
     await session.commitTransaction();
 
-    res.status(201).json({
+    const response = {
       venda: novaVenda,
       saldoCaixaAtualizado: caixa.saldo_final,
       totalDinheiroAdicionado: totalDinheiro,
       message: "Venda criada e caixa atualizado com sucesso",
-    });
+    };
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      response.saldoContaBancariaAtualizado = contaBancariaPadrao.saldo;
+      response.totalPixAdicionado = totalPix;
+      response.contaBancaria = {
+        codigo_conta_bancaria: contaBancariaPadrao.codigo_conta_bancaria,
+        descricao:
+          contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco,
+      };
+    }
+
+    res.status(201).json(response);
   } catch (error) {
     if (session.inTransaction()) {
       await session.abortTransaction();
@@ -218,31 +260,101 @@ exports.criarVenda = async (req, res) => {
 
 exports.cancelarVenda = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const { codigo_venda, codigo_loja, codigo_empresa, codigo_movimento } =
-      req.body;
+    session.startTransaction();
+    const { codigo_loja, codigo_empresa, codigo_venda } = req.body;
 
-    if (!codigo_venda) {
-      await session.abortTransaction();
-      return res.status(400).json({ message: "Código da venda não fornecido" });
+    if (!codigo_loja || !codigo_empresa || !codigo_venda) {
+      throw new Error("Dados para cancelamento inválidos");
     }
 
     const venda = await Venda.findOne({
-      codigo_venda,
       codigo_loja,
       codigo_empresa,
+      codigo_venda,
     }).session(session);
+
     if (!venda) {
-      await session.abortTransaction();
-      return res.status(404).json({ message: "Venda não encontrada" });
+      throw new Error("Venda não encontrada");
     }
 
     if (venda.status === "cancelado") {
-      await session.abortTransaction();
-      return res.status(400).json({ message: "Venda já foi cancelada" });
+      throw new Error("Venda já foi cancelada");
     }
+
+    const caixa = await Caixa.findOne({
+      codigo_loja,
+      codigo_empresa,
+      status: "aberto",
+    }).session(session);
+
+    if (!caixa) {
+      throw new Error("Caixa não está aberto para realizar o cancelamento");
+    }
+
+    const contaBancariaPadrao = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      conta_padrao: true,
+    }).session(session);
+
+    let totalDinheiro = 0;
+    let totalPix = 0;
+
+    venda.forma_pagamento.forEach((pagamento) => {
+      const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+      const valor = parseFloat(pagamento.valor_pagamento);
+
+      if (meioPagamento === "dinheiro") {
+        totalDinheiro += valor;
+      } else if (meioPagamento === "pix") {
+        totalPix += valor;
+      }
+    });
+
+    if (totalDinheiro > 0) {
+      if (caixa.saldo_final < totalDinheiro) {
+        throw new Error(
+          `Saldo insuficiente no caixa para estornar. Saldo atual: ${caixa.saldo_final}, Valor a estornar: ${totalDinheiro}`
+        );
+      }
+      caixa.saldo_final = parseFloat(caixa.saldo_final) - totalDinheiro;
+    }
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      const saldoAtual = contaBancariaPadrao.saldo || 0;
+      if (saldoAtual < totalPix) {
+        throw new Error(
+          `Saldo insuficiente na conta bancária para estornar PIX. Saldo atual: ${saldoAtual}, Valor a estornar: ${totalPix}`
+        );
+      }
+      contaBancariaPadrao.saldo = parseFloat(saldoAtual) - totalPix;
+    }
+
+    const movimentacoesEstorno = venda.forma_pagamento.map((pagamento) => {
+      const movimentacao = {
+        codigo_loja,
+        codigo_empresa,
+        caixaId: caixa._id,
+        caixa: caixa.caixa,
+        codigo_caixa: caixa.codigo_caixa,
+        tipo_movimentacao: "saida",
+        valor: pagamento.valor_pagamento,
+        meio_pagamento: pagamento.meio_pagamento,
+        documento_origem: venda.codigo_venda,
+        origem: "cancelamento_venda",
+        categoria_contabil: "1.1.1",
+        observacao: `Estorno da venda ${venda.codigo_venda}`,
+      };
+
+      const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+      if (meioPagamento === "pix" && contaBancariaPadrao) {
+        movimentacao.codigo_conta_bancaria = contaBancariaPadrao.codigo_conta_bancaria;
+      }
+
+      return new Movimentacao(movimentacao);
+    });
 
     for (const item of venda.itens) {
       const produto = await Produto.findOne({
@@ -251,7 +363,14 @@ exports.cancelarVenda = async (req, res) => {
         codigo_produto: item.codigo_produto,
       }).session(session);
 
-      if (produto) {
+      if (!produto) {
+        console.warn(`Produto não encontrado para restituir estoque: ${item.codigo_produto}`);
+        continue;
+      }
+
+      const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+
+      if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
         produto.estoque[0].estoque += item.quantidade;
         await produto.save({ session });
       }
@@ -260,79 +379,108 @@ exports.cancelarVenda = async (req, res) => {
     if (venda.tipo === "aprazo") {
       await Receber.updateMany(
         {
+          codigo_loja,
+          codigo_empresa,
           documento_origem: venda.codigo_venda,
           origem: "venda",
           status: "aberto",
         },
-        { status: "cancelado" },
+        {
+          status: "cancelado",
+          data_cancelamento: new Date(),
+          observacao_cancelamento: "Cancelamento da venda",
+        },
         { session }
       );
     }
 
-    const movimentacoes = await Movimentacao.find({
-      documento_origem: venda.codigo_venda,
-      codigo_loja,
-      codigo_empresa,
-      origem: "venda",
-    }).session(session);
-
-    const caixaAtual = await Caixa.findOne({
-      codigo_loja: venda.codigo_loja,
-      codigo_empresa: venda.codigo_empresa,
-      status: "aberto",
-    }).session(session);
-
-    if (!caixaAtual) {
-      await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ message: "Nenhum caixa aberto encontrado" });
-    }
-
-    for (const movimentacao of movimentacoes) {
-      if (movimentacao.caixaId.toString() !== caixaAtual._id.toString()) {
-        const novaMovimentacao = new Movimentacao({
-          codigo_loja: venda.codigo_loja,
-          codigo_empresa: venda.codigo_empresa,
-          codigo_movimento,
-          caixaId: caixaAtual._id,
-          caixa: caixaAtual.caixa,
-          codigo_caixa: caixaAtual.codigo_caixa,
-          tipo_movimentacao: "saida",
-          valor: movimentacao.valor,
-          meio_pagamento: movimentacao.meio_pagamento,
-          documento_origem: venda.codigo_venda,
-          origem: "venda",
-          categoria_contabil: "estorno",
-          historico: "Cancelamento de venda",
-        });
-
-        await novaMovimentacao.save({ session });
-      } else {
-        movimentacao.tipo_movimentacao = "saida";
-        movimentacao.categoria_contabil = "estorno";
-        movimentacao.historico = "Cancelamento de venda";
-        await movimentacao.save({ session });
-      }
-    }
-
     venda.status = "cancelado";
-    await venda.save({ session });
+    venda.data_cancelamento = new Date();
+    venda.motivo_cancelamento = "Cancelamento manual";
 
-    caixaAtual.saldo -= movimentacoes.reduce(
-      (total, mov) => total + mov.valor,
-      0
-    );
-    await caixaAtual.save({ session });
+    const saveOperations = [
+      ...movimentacoesEstorno.map((mov) => mov.save({ session })),
+      caixa.save({ session }),
+      venda.save({ session }),
+    ];
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      saveOperations.push(contaBancariaPadrao.save({ session }));
+    }
+
+    await Promise.all(saveOperations);
 
     await session.commitTransaction();
 
-    res.status(200).json({ message: "Venda cancelada com sucesso" });
+    const response = {
+      venda: venda,
+      saldoCaixaAtualizado: caixa.saldo_final,
+      totalDinheiroEstornado: totalDinheiro,
+      message: "Venda cancelada e valores estornados com sucesso",
+    };
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      response.saldoContaBancariaAtualizado = contaBancariaPadrao.saldo;
+      response.totalPixEstornado = totalPix;
+      response.contaBancaria = {
+        codigo_conta_bancaria: contaBancariaPadrao.codigo_conta_bancaria,
+        descricao: contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco
+      };
+    }
+
+    res.status(200).json(response);
+
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     res.status(500).json({ error: error.message });
   } finally {
     session.endSession();
+  }
+};
+
+exports.cancelarVendaPorId = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+    const { id } = req.params;
+
+    if (!id) {
+      throw new Error("ID da venda é obrigatório");
+    }
+
+    const venda = await Venda.findById(id).session(session);
+
+    if (!venda) {
+      throw new Error("Venda não encontrada");
+    }
+
+    if (venda.status === "cancelado") {
+      throw new Error("Venda já foi cancelada");
+    }
+
+    req.body = {
+      codigo_loja: venda.codigo_loja,
+      codigo_empresa: venda.codigo_empresa,
+      codigo_venda: venda.codigo_venda,
+    };
+
+    await session.abortTransaction();
+    session.endSession();
+    
+    return exports.cancelarVenda(req, res);
+
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (session.inTransaction()) {
+      session.endSession();
+    }
   }
 };
 

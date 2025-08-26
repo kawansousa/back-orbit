@@ -304,7 +304,7 @@ exports.registrarMovimentacaoBanco = async (req, res) => {
       codigo_loja: contasBancarias.codigo_loja,
       codigo_empresa: contasBancarias.codigo_empresa,
       codigo_movimento,
-      conta_bancaria: contasBancarias.codigo_conta_bancaria,
+      codigo_conta_bancaria: contasBancarias.codigo_conta_bancaria,
       tipo_movimentacao,
       valor,
       origem,
@@ -324,12 +324,12 @@ exports.registrarMovimentacaoBanco = async (req, res) => {
 
 exports.listaMovimentacaoContaBancaria = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, conta_bancaria } = req.query;
+    const { codigo_loja, codigo_empresa, codigo_conta_bancaria } = req.query;
 
     const filtros = {
       codigo_loja,
       codigo_empresa,
-      conta_bancaria,
+      codigo_conta_bancaria,
     };
 
     if (!codigo_loja || !codigo_empresa) {
@@ -338,10 +338,10 @@ exports.listaMovimentacaoContaBancaria = async (req, res) => {
       });
     }
 
-    if (!conta_bancaria) {
+    if (!codigo_conta_bancaria) {
       return res.status(400).json({
-        error: "A conta bancaria é obrigatoria"
-      })
+        error: "O codigo_conta_bancaria é obrigatoria",
+      });
     }
 
     const movimentacoesBancarias = await MovimentacaoBanco.find(filtros);

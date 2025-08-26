@@ -9,13 +9,18 @@ const Caixa = require("../models/caixa.model");
 const mongoose = require("mongoose");
 const Produto = require("../models/produtos.model");
 const Receber = require("../models/receber.model");
+const ContasBancarias = require("../models/contas_bancarias.model");
 
-const atualizarSaldoCaixa = (caixa, formasPagamento, operacao = 'adicionar') => {
+const atualizarSaldoCaixa = (
+  caixa,
+  formasPagamento,
+  operacao = "adicionar"
+) => {
   let totalDinheiro = 0;
 
-  formasPagamento.forEach(pagamento => {
+  formasPagamento.forEach((pagamento) => {
     const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
-    if (meioPagamento === 'dinheiro') {
+    if (meioPagamento === "dinheiro") {
       totalDinheiro += parseFloat(pagamento.valor_pagamento);
     }
   });
@@ -23,9 +28,9 @@ const atualizarSaldoCaixa = (caixa, formasPagamento, operacao = 'adicionar') => 
   if (totalDinheiro > 0) {
     const saldoAnterior = caixa.saldo_final;
 
-    if (operacao === 'adicionar') {
+    if (operacao === "adicionar") {
       caixa.saldo_final = parseFloat(saldoAnterior) + parseFloat(totalDinheiro);
-    } else if (operacao === 'subtrair') {
+    } else if (operacao === "subtrair") {
       caixa.saldo_final = parseFloat(saldoAnterior) - parseFloat(totalDinheiro);
     }
   }
@@ -35,7 +40,8 @@ const atualizarSaldoCaixa = (caixa, formasPagamento, operacao = 'adicionar') => 
 
 exports.listaOs = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
+      req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -85,7 +91,7 @@ exports.listaOs = async (req, res) => {
               nome: "$cliente_populated.nome",
               codigo_cliente: "$cliente_populated.codigo_cliente",
             },
-            else: "$cliente_sem_cadastro",
+            else: "$$REMOVE",
           },
         },
       },
@@ -99,20 +105,30 @@ exports.listaOs = async (req, res) => {
         if (!isNaN(codigoNumerico)) {
           orConditions.push({ codigo_os: codigoNumerico });
         } else {
-          orConditions.push({ codigo_os: { $regex: termoBusca, $options: "i" } });
+          orConditions.push({
+            codigo_os: { $regex: termoBusca, $options: "i" },
+          });
         }
       } else if (searchType === "cliente") {
-        orConditions.push({ "cliente.nome": { $regex: termoBusca, $options: "i" } });
+        orConditions.push({
+          "cliente.nome": { $regex: termoBusca, $options: "i" },
+        });
       } else if (searchType === "responsavel") {
-        orConditions.push({ responsavel: { $regex: termoBusca, $options: "i" } });
+        orConditions.push({
+          responsavel: { $regex: termoBusca, $options: "i" },
+        });
       } else {
         const codigoNumerico = parseInt(termoBusca, 10);
         if (!isNaN(codigoNumerico)) {
           orConditions.push({ codigo_os: codigoNumerico });
         }
         orConditions.push({ codigo_os: { $regex: termoBusca, $options: "i" } });
-        orConditions.push({ "cliente.nome": { $regex: termoBusca, $options: "i" } });
-        orConditions.push({ responsavel: { $regex: termoBusca, $options: "i" } });
+        orConditions.push({
+          "cliente.nome": { $regex: termoBusca, $options: "i" },
+        });
+        orConditions.push({
+          responsavel: { $regex: termoBusca, $options: "i" },
+        });
       }
     }
 
@@ -172,7 +188,8 @@ exports.listaOs = async (req, res) => {
 
     if (lista.length === 0 && searchTerm) {
       return res.status(404).json({
-        message: "Nenhuma ordem de serviço encontrada para os filtros fornecidos.",
+        message:
+          "Nenhuma ordem de serviço encontrada para os filtros fornecidos.",
         total: 0,
         page: pageNumber,
         limit: limitNumber,
@@ -196,6 +213,8 @@ exports.listaOs = async (req, res) => {
 
 exports.createOs = async (req, res) => {
   const session = await mongoose.startSession();
+  let transactionCommitted = false;
+
   try {
     session.startTransaction();
 
@@ -226,13 +245,14 @@ exports.createOs = async (req, res) => {
     } = req.body;
 
     if (!codigo_loja || !codigo_empresa || !codigo_os) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        error: "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
-      });
+      throw new Error(
+        "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios."
+      );
     }
 
     let caixa = null;
+    let totalPix = 0;
+
     if (status === "faturado") {
       caixa = await Caixa.findOne({
         codigo_loja,
@@ -241,10 +261,9 @@ exports.createOs = async (req, res) => {
       }).session(session);
 
       if (!caixa) {
-        await session.abortTransaction();
-        return res.status(400).json({
-          message: "O caixa precisa estar aberto para faturar a ordem de serviço."
-        });
+        throw new Error(
+          "O caixa precisa estar aberto para faturar a ordem de serviço."
+        );
       }
     }
 
@@ -273,109 +292,175 @@ exports.createOs = async (req, res) => {
       parcelas,
     });
 
-    if (status === "faturado") {
-      const totalDinheiroAdicionado = atualizarSaldoCaixa(caixa, forma_pagamento, 'adicionar');
-
-      const movimentacoes = forma_pagamento.map(
-        (pagamento) =>
-          new Movimentacao({
-            codigo_loja,
-            codigo_empresa,
-            caixaId: caixa._id,
-            codigo_movimento,
-            caixa: caixa.caixa,
-            codigo_caixa: caixa.codigo_caixa,
-            tipo_movimentacao: "entrada",
-            valor: pagamento.valor_pagamento,
-            meio_pagamento: pagamento.meio_pagamento,
-            documento_origem: novaOs.codigo_os,
-            origem: "os",
-            categoria_contabil: "1.1.1",
-          })
-      );
-
-      const recebimentos = [];
-if (parcelas && parcelas.length > 0) {
-  for (let i = 0; i < parcelas.length; i++) {
-    const parcela = parcelas[i];
-    const { valor_total, data_vencimento, observacao, meio_pagamento, codigo_receber } = parcela;
-
-    if (!valor_total || valor_total <= 0) {
-      throw new Error(`Valor total inválido na parcela ${i + 1}`);
-    }
-
-    if (!codigo_receber) {
-      throw new Error(`Código receber não foi gerado para a parcela ${i + 1}`);
-    }
-
-    const novoReceber = new Receber({
+    const contaBancariaPadrao = await ContasBancarias.findOne({
       codigo_loja,
       codigo_empresa,
-      cliente,
-      origem: "os",
-      documento_origem: novaOs.codigo_os,
-      valor_total,
-      valor_restante: valor_total,
-      data_vencimento,
-      codigo_receber, 
-      observacao,
-      status: "aberto",
-      fatura: `${i + 1}/${parcelas.length}`,
-      meio_pagamento,
-    });
-    recebimentos.push(novoReceber);
-  }
-}
+      conta_padrao: true,
+    }).session(session);
 
-      for (const item of itens) {
-        const produto = await Produto.findOne({
+    if (status === "faturado") {
+      const totalDinheiroAdicionado = atualizarSaldoCaixa(
+        caixa,
+        forma_pagamento,
+        "adicionar"
+      );
+
+      const movimentacoes = forma_pagamento.map((pagamento) => {
+        const movimentacao = {
           codigo_loja,
           codigo_empresa,
-          codigo_produto: item.codigo_produto,
-        }).session(session);
+          caixaId: caixa._id,
+          codigo_movimento,
+          caixa: caixa.caixa,
+          codigo_caixa: caixa.codigo_caixa,
+          tipo_movimentacao: "entrada",
+          valor: pagamento.valor_pagamento,
+          meio_pagamento: pagamento.meio_pagamento,
+          documento_origem: novaOs.codigo_os,
+          origem: "os",
+          categoria_contabil: "1.1.1",
+        };
 
-        if (!produto) {
-          throw new Error(`Produto não encontrado: ${item.codigo_produto}`);
+        const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+        if (meioPagamento === "pix" && contaBancariaPadrao) {
+          movimentacao.codigo_conta_bancaria =
+            contaBancariaPadrao.codigo_conta_bancaria;
         }
 
-        const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+        return new Movimentacao(movimentacao);
+      });
 
-        if (configuracaoEstoque === "SIM") {
-          if (produto.estoque[0].estoque < item.quantidade) {
-            throw new Error(
-              `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`
-            );
-          }
-          produto.estoque[0].estoque -= item.quantidade;
-        } else if (configuracaoEstoque === "PERMITE_NEGATIVO") {
-          produto.estoque[0].estoque -= item.quantidade;
-        } else if (configuracaoEstoque === "NAO") {
-          continue;
+      forma_pagamento.forEach((pagamento) => {
+        const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+        if (meioPagamento === "pix") {
+          totalPix += parseFloat(pagamento.valor_pagamento);
         }
+      });
 
-        await produto.save({ session });
+      if (totalPix > 0 && contaBancariaPadrao) {
+        const saldoAnteriorBanco = contaBancariaPadrao.saldo || 0;
+        contaBancariaPadrao.saldo =
+          parseFloat(saldoAnteriorBanco) + parseFloat(totalPix);
       }
 
-      await Promise.all([
+      const recebimentos = [];
+      if (parcelas && parcelas.length > 0) {
+        for (let i = 0; i < parcelas.length; i++) {
+          const parcela = parcelas[i];
+          const {
+            valor_total,
+            data_vencimento,
+            observacao,
+            meio_pagamento,
+            codigo_receber,
+          } = parcela;
+
+          if (!valor_total || valor_total <= 0) {
+            throw new Error(`Valor total inválido na parcela ${i + 1}`);
+          }
+
+          if (!codigo_receber) {
+            throw new Error(
+              `Código receber não foi gerado para a parcela ${i + 1}`
+            );
+          }
+
+          const novoReceber = new Receber({
+            codigo_loja,
+            codigo_empresa,
+            cliente,
+            origem: "os",
+            documento_origem: novaOs.codigo_os,
+            valor_total,
+            valor_restante: valor_total,
+            data_vencimento,
+            codigo_receber,
+            observacao,
+            status: "aberto",
+            fatura: `${i + 1}/${parcelas.length}`,
+            meio_pagamento,
+          });
+          recebimentos.push(novoReceber);
+        }
+      }
+
+      if (itens && itens.length > 0) {
+        for (const item of itens) {
+          const produto = await Produto.findOne({
+            codigo_loja,
+            codigo_empresa,
+            codigo_produto: item.codigo_produto,
+          }).session(session);
+
+          if (!produto) {
+            throw new Error(`Produto não encontrado: ${item.codigo_produto}`);
+          }
+
+          const configuracaoEstoque =
+            produto.configuracoes[0]?.controla_estoque || "SIM";
+
+          if (configuracaoEstoque === "SIM") {
+            if (produto.estoque[0].estoque < item.quantidade) {
+              throw new Error(
+                `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`
+              );
+            }
+            produto.estoque[0].estoque -= item.quantidade;
+          } else if (configuracaoEstoque === "PERMITE_NEGATIVO") {
+            produto.estoque[0].estoque -= item.quantidade;
+          } else if (configuracaoEstoque === "NAO") {
+            continue;
+          }
+
+          await produto.save({ session });
+        }
+      }
+
+      const saveOperations = [
         ...movimentacoes.map((mov) => mov.save({ session })),
-        caixa.save({ session }), 
+        caixa.save({ session }),
         novaOs.save({ session }),
         ...recebimentos.map((receb) => receb.save({ session })),
-      ]);
+      ];
 
+      if (totalPix > 0 && contaBancariaPadrao) {
+        saveOperations.push(contaBancariaPadrao.save({ session }));
+      }
+
+      await Promise.all(saveOperations);
     } else {
       await novaOs.save({ session });
     }
 
     await session.commitTransaction();
-    res.status(201).json({
+    transactionCommitted = true;
+
+    const response = {
       message: "Ordem de Serviço criada com sucesso",
       os: novaOs,
-      saldoCaixaAtualizado: caixa ? caixa.saldo_final : null
-    });
+      saldoCaixaAtualizado: caixa ? caixa.saldo_final : null,
+    };
 
+    if (status === "faturado" && totalPix > 0 && contaBancariaPadrao) {
+      response.saldoContaBancariaAtualizado = contaBancariaPadrao.saldo;
+      response.totalPixAdicionado = totalPix;
+      response.contaBancaria = {
+        codigo_conta_bancaria: contaBancariaPadrao.codigo_conta_bancaria,
+        descricao:
+          contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco,
+      };
+    }
+
+    res.status(201).json(response);
   } catch (error) {
-    await session.abortTransaction();
+    if (!transactionCommitted) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        console.error("Erro ao abortar transação:", abortError);
+      }
+    }
+
     console.error("Erro ao criar OS:", error);
     res.status(500).json({ error: error.message });
   } finally {
@@ -421,9 +506,11 @@ exports.getOsById = async (req, res) => {
 
 exports.updateOs = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
+  let transactionCommitted = false;
 
   try {
+    session.startTransaction();
+
     const {
       codigo_loja,
       codigo_empresa,
@@ -451,10 +538,9 @@ exports.updateOs = async (req, res) => {
     } = req.body;
 
     if (!codigo_loja || !codigo_empresa) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
-      });
+      throw new Error(
+        "Os campos codigo_loja e codigo_empresa são obrigatórios."
+      );
     }
 
     const osExistente = await Os.findOne({
@@ -464,10 +550,7 @@ exports.updateOs = async (req, res) => {
     }).session(session);
 
     if (!osExistente) {
-      await session.abortTransaction();
-      return res.status(404).json({
-        error: "Ordem de Serviço não encontrada.",
-      });
+      throw new Error("Ordem de Serviço não encontrada.");
     }
 
     let caixaAberto = null;
@@ -479,10 +562,9 @@ exports.updateOs = async (req, res) => {
       }).session(session);
 
       if (!caixaAberto) {
-        await session.abortTransaction();
-        return res.status(400).json({
-          message: "O caixa precisa estar aberto para faturar a ordem de serviço."
-        });
+        throw new Error(
+          "O caixa precisa estar aberto para faturar a ordem de serviço."
+        );
       }
     } else {
       caixaAberto = await Caixa.findOne({
@@ -492,12 +574,21 @@ exports.updateOs = async (req, res) => {
       }).session(session);
     }
 
+    const contaBancariaPadrao = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      conta_padrao: true,
+    }).session(session);
+
+    let totalPixAntigo = 0;
+    let totalPixNovo = 0;
+
     if (osExistente.status === "faturado") {
       const todasMovimentacoes = await Movimentacao.find({
         $or: [
           { documento_origem: String(osExistente.codigo_os) },
           { documento_origem: Number(osExistente.codigo_os) },
-          { documento_origem: osExistente.codigo_os }
+          { documento_origem: osExistente.codigo_os },
         ],
         origem: "os",
         codigo_loja,
@@ -507,27 +598,45 @@ exports.updateOs = async (req, res) => {
       let movimentacaoCorreta = null;
 
       if (caixaAberto) {
-        movimentacaoCorreta = todasMovimentacoes.find(mov =>
-          mov.caixaId.toString() === caixaAberto._id.toString()
+        movimentacaoCorreta = todasMovimentacoes.find(
+          (mov) => mov.caixaId.toString() === caixaAberto._id.toString()
         );
 
         if (!movimentacaoCorreta) {
           const primeiraMovimentacao = todasMovimentacoes[0];
 
           if (primeiraMovimentacao) {
-            const saoIguais = String(primeiraMovimentacao.codigo_caixa) === String(caixaAberto.codigo_caixa);
+            const saoIguais =
+              String(primeiraMovimentacao.codigo_caixa) ===
+              String(caixaAberto.codigo_caixa);
 
             if (!saoIguais) {
-              await session.abortTransaction();
-              return res.status(400).json({
-                message: `Alteração só é permitida no mesmo caixa. OS foi faturada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`
-              });
+              throw new Error(
+                `Alteração só é permitida no mesmo caixa. OS foi faturada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`
+              );
             }
           }
         }
 
         const formasPagamentoAntigas = osExistente.forma_pagamento || [];
-        const totalDinheiroRevertido = atualizarSaldoCaixa(caixaAberto, formasPagamentoAntigas, 'subtrair');
+        const totalDinheiroRevertido = atualizarSaldoCaixa(
+          caixaAberto,
+          formasPagamentoAntigas,
+          "subtrair"
+        );
+
+        formasPagamentoAntigas.forEach((pagamento) => {
+          const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+          if (meioPagamento === "pix") {
+            totalPixAntigo += parseFloat(pagamento.valor_pagamento);
+          }
+        });
+
+        if (totalPixAntigo > 0 && contaBancariaPadrao) {
+          const saldoAnteriorBanco = contaBancariaPadrao.saldo || 0;
+          contaBancariaPadrao.saldo =
+            parseFloat(saldoAnteriorBanco) - totalPixAntigo;
+        }
       }
 
       for (const item of osExistente.itens) {
@@ -538,9 +647,13 @@ exports.updateOs = async (req, res) => {
         }).session(session);
 
         if (produto) {
-          const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+          const configuracaoEstoque =
+            produto.configuracoes[0]?.controla_estoque || "SIM";
 
-          if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
+          if (
+            configuracaoEstoque === "SIM" ||
+            configuracaoEstoque === "PERMITE_NEGATIVO"
+          ) {
             produto.estoque[0].estoque += item.quantidade;
             await produto.save({ session });
           }
@@ -551,7 +664,7 @@ exports.updateOs = async (req, res) => {
         $or: [
           { documento_origem: String(codigo_os) },
           { documento_origem: Number(codigo_os) },
-          { documento_origem: codigo_os }
+          { documento_origem: codigo_os },
         ],
         origem: "os",
         codigo_loja,
@@ -562,7 +675,7 @@ exports.updateOs = async (req, res) => {
         $or: [
           { documento_origem: String(codigo_os) },
           { documento_origem: Number(codigo_os) },
-          { documento_origem: codigo_os }
+          { documento_origem: codigo_os },
         ],
         origem: "os",
         codigo_loja,
@@ -579,20 +692,17 @@ exports.updateOs = async (req, res) => {
         }).session(session);
 
         if (!produto) {
-          await session.abortTransaction();
-          return res.status(400).json({
-            message: `Produto não encontrado: ${item.codigo_produto}`,
-          });
+          throw new Error(`Produto não encontrado: ${item.codigo_produto}`);
         }
 
-        const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
+        const configuracaoEstoque =
+          produto.configuracoes[0]?.controla_estoque || "SIM";
 
         if (configuracaoEstoque === "SIM") {
           if (produto.estoque[0].estoque < item.quantidade) {
-            await session.abortTransaction();
-            return res.status(400).json({
-              message: `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`,
-            });
+            throw new Error(
+              `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`
+            );
           }
           produto.estoque[0].estoque -= item.quantidade;
         } else if (configuracaoEstoque === "PERMITE_NEGATIVO") {
@@ -605,12 +715,29 @@ exports.updateOs = async (req, res) => {
       }
 
       if (caixaAberto) {
-        const totalDinheiroAdicionado = atualizarSaldoCaixa(caixaAberto, forma_pagamento, 'adicionar');
+        const totalDinheiroAdicionado = atualizarSaldoCaixa(
+          caixaAberto,
+          forma_pagamento,
+          "adicionar"
+        );
+
+        forma_pagamento.forEach((pagamento) => {
+          const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+          if (meioPagamento === "pix") {
+            totalPixNovo += parseFloat(pagamento.valor_pagamento);
+          }
+        });
+
+        if (totalPixNovo > 0 && contaBancariaPadrao) {
+          const saldoAnteriorBanco = contaBancariaPadrao.saldo || 0;
+          contaBancariaPadrao.saldo =
+            parseFloat(saldoAnteriorBanco) + totalPixNovo;
+        }
       }
 
       if (forma_pagamento && forma_pagamento.length > 0) {
         for (const pagamento of forma_pagamento) {
-          const novaMovimentacao = new Movimentacao({
+          const movimentacao = {
             codigo_loja,
             codigo_empresa,
             caixaId: caixaAberto._id,
@@ -624,54 +751,63 @@ exports.updateOs = async (req, res) => {
             origem: "os",
             categoria_contabil: "1.1.1",
             historico: "Alteração de OS",
-          });
+          };
+
+          const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+          if (meioPagamento === "pix" && contaBancariaPadrao) {
+            movimentacao.codigo_conta_bancaria =
+              contaBancariaPadrao.codigo_conta_bancaria;
+          }
+
+          const novaMovimentacao = new Movimentacao(movimentacao);
           await novaMovimentacao.save({ session });
         }
       }
 
-if (parcelas && parcelas.length > 0) {
-  for (let i = 0; i < parcelas.length; i++) {
-    const parcela = parcelas[i];
+      if (parcelas && parcelas.length > 0) {
+        for (let i = 0; i < parcelas.length; i++) {
+          const parcela = parcelas[i];
 
-    if (!parcela.valor_total || parcela.valor_total <= 0) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        message: `Valor total inválido na parcela ${i + 1}`,
-      });
-    }
+          if (!parcela.valor_total || parcela.valor_total <= 0) {
+            throw new Error(`Valor total inválido na parcela ${i + 1}`);
+          }
 
-    if (!parcela.codigo_receber) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        message: `Código receber não foi gerado para a parcela ${i + 1}`,
-      });
-    }
+          if (!parcela.codigo_receber) {
+            throw new Error(
+              `Código receber não foi gerado para a parcela ${i + 1}`
+            );
+          }
 
-    const novaParcela = new Receber({
-      codigo_loja,
-      codigo_empresa,
-      cliente,
-      codigo_receber: parcela.codigo_receber, 
-      documento_origem: String(codigo_os),
-      origem: "os",
-      valor_restante: parcela.valor_total,
-      valor_total: parcela.valor_total,
-      status: "aberto",
-      data_vencimento: parcela.data_vencimento,
-      observacao: parcela.observacao,
-      fatura: `${i + 1}/${parcelas.length}`,
-      meio_pagamento: parcela.meio_pagamento,
-    });
-    await novaParcela.save({ session });
-  }
-}
+          const novaParcela = new Receber({
+            codigo_loja,
+            codigo_empresa,
+            cliente,
+            codigo_receber: parcela.codigo_receber,
+            documento_origem: String(codigo_os),
+            origem: "os",
+            valor_restante: parcela.valor_total,
+            valor_total: parcela.valor_total,
+            status: "aberto",
+            data_vencimento: parcela.data_vencimento,
+            observacao: parcela.observacao,
+            fatura: `${i + 1}/${parcelas.length}`,
+            meio_pagamento: parcela.meio_pagamento,
+          });
+          await novaParcela.save({ session });
+        }
+      }
     }
 
     osExistente.cliente = cliente || osExistente.cliente;
-    osExistente.cliente_sem_cadastro = cliente_sem_cadastro || osExistente.cliente_sem_cadastro;
+    osExistente.cliente_sem_cadastro =
+      cliente_sem_cadastro || osExistente.cliente_sem_cadastro;
     osExistente.status = status || osExistente.status;
-    osExistente.dataAbertura = dataAbertura ? new Date(dataAbertura) : osExistente.dataAbertura;
-    osExistente.dataFechamento = dataFechamento ? new Date(dataFechamento) : osExistente.dataFechamento;
+    osExistente.dataAbertura = dataAbertura
+      ? new Date(dataAbertura)
+      : osExistente.dataAbertura;
+    osExistente.dataFechamento = dataFechamento
+      ? new Date(dataFechamento)
+      : osExistente.dataFechamento;
     osExistente.responsavel = responsavel || osExistente.responsavel;
     osExistente.telefone = telefone || osExistente.telefone;
     osExistente.email = email || osExistente.email;
@@ -680,28 +816,57 @@ if (parcelas && parcelas.length > 0) {
     osExistente.modeloVeiculo = modeloVeiculo || osExistente.modeloVeiculo;
     osExistente.anoVeiculo = anoVeiculo || osExistente.anoVeiculo;
     osExistente.corVeiculo = corVeiculo || osExistente.corVeiculo;
-    osExistente.observacaoVeiculo = observacaoVeiculo || osExistente.observacaoVeiculo;
+    osExistente.observacaoVeiculo =
+      observacaoVeiculo || osExistente.observacaoVeiculo;
     osExistente.itens = itens || osExistente.itens;
     osExistente.servicos = servicos || osExistente.servicos;
-    osExistente.forma_pagamento = forma_pagamento || osExistente.forma_pagamento;
+    osExistente.forma_pagamento =
+      forma_pagamento || osExistente.forma_pagamento;
     osExistente.parcelas = parcelas || osExistente.parcelas;
-    osExistente.observacaoGeral = observacaoGeral || osExistente.observacaoGeral;
+    osExistente.observacaoGeral =
+      observacaoGeral || osExistente.observacaoGeral;
 
-    await osExistente.save({ session });
+    const saveOperations = [osExistente.save({ session })];
 
     if (caixaAberto) {
-      await caixaAberto.save({ session });
+      saveOperations.push(caixaAberto.save({ session }));
     }
 
-    await session.commitTransaction();
+    if (contaBancariaPadrao && (totalPixAntigo > 0 || totalPixNovo > 0)) {
+      saveOperations.push(contaBancariaPadrao.save({ session }));
+    }
 
-    return res.status(200).json({
+    await Promise.all(saveOperations);
+
+    await session.commitTransaction();
+    transactionCommitted = true;
+
+    const response = {
       message: "Ordem de Serviço atualizada com sucesso.",
       os: osExistente,
-      saldoCaixaAtualizado: caixaAberto ? caixaAberto.saldo_final : null
-    });
+      saldoCaixaAtualizado: caixaAberto ? caixaAberto.saldo_final : null,
+    };
+
+    if (contaBancariaPadrao && (totalPixAntigo > 0 || totalPixNovo > 0)) {
+      response.saldoContaBancariaAtualizado = contaBancariaPadrao.saldo;
+      response.totalPixEstornado = totalPixAntigo;
+      response.totalPixAdicionado = totalPixNovo;
+      response.contaBancaria = {
+        codigo_conta_bancaria: contaBancariaPadrao.codigo_conta_bancaria,
+        descricao:
+          contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco,
+      };
+    }
+
+    return res.status(200).json(response);
   } catch (error) {
-    await session.abortTransaction();
+    if (!transactionCommitted) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        console.error("Erro ao abortar transação:", abortError);
+      }
+    }
     console.error("Erro ao atualizar OS:", error);
     return res.status(500).json({ error: error.message });
   } finally {
@@ -711,16 +876,17 @@ if (parcelas && parcelas.length > 0) {
 
 exports.cancelarOs = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const { codigo_loja, codigo_empresa, codigo_os, codigo_movimento } = req.body;
+    session.startTransaction();
+
+    const { codigo_loja, codigo_empresa, codigo_os, codigo_movimento } =
+      req.body;
 
     if (!codigo_loja || !codigo_empresa || !codigo_os) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        error: "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
-      });
+      throw new Error(
+        "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios."
+      );
     }
 
     const os = await Os.findOne({
@@ -730,31 +896,85 @@ exports.cancelarOs = async (req, res) => {
     }).session(session);
 
     if (!os) {
-      await session.abortTransaction();
-      return res.status(404).json({
-        error: "A ordem de serviço não foi encontrada nessa loja e empresa.",
-      });
+      throw new Error(
+        "A ordem de serviço não foi encontrada nessa loja e empresa."
+      );
     }
 
     if (os.status === "cancelada") {
-      await session.abortTransaction();
-      return res.status(400).json({
-        error: "A ordem de serviço já está cancelada.",
+      throw new Error("A ordem de serviço já está cancelada.");
+    }
+
+    const caixaAtual = await Caixa.findOne({
+      codigo_loja,
+      codigo_empresa,
+      status: "aberto",
+    }).session(session);
+
+    if (!caixaAtual) {
+      throw new Error(
+        "Nenhum caixa aberto encontrado para realizar o cancelamento."
+      );
+    }
+
+    const contaBancariaPadrao = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      conta_padrao: true,
+    }).session(session);
+
+    let totalDinheiro = 0;
+    let totalPix = 0;
+
+    if (os.forma_pagamento && os.forma_pagamento.length > 0) {
+      os.forma_pagamento.forEach((pagamento) => {
+        const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+        const valor = parseFloat(pagamento.valor_pagamento);
+
+        if (meioPagamento === "dinheiro") {
+          totalDinheiro += valor;
+        } else if (meioPagamento === "pix") {
+          totalPix += valor;
+        }
       });
     }
 
-    for (const item of os.itens) {
-      const produto = await Produto.findOne({
-        codigo_loja,
-        codigo_empresa,
-        codigo_produto: item.codigo_produto,
-      }).session(session);
+    if (totalDinheiro > 0) {
+      if (caixaAtual.saldo_final < totalDinheiro) {
+        throw new Error(
+          `Saldo insuficiente no caixa para estornar. Saldo atual: ${caixaAtual.saldo_final}, Valor a estornar: ${totalDinheiro}`
+        );
+      }
+    }
 
-      if (produto) {
-        const configuracaoEstoque = produto.configuracoes[0]?.controla_estoque || "SIM";
-        if (configuracaoEstoque === "SIM" || configuracaoEstoque === "PERMITE_NEGATIVO") {
-          produto.estoque[0].estoque += item.quantidade;
-          await produto.save({ session });
+    if (totalPix > 0 && contaBancariaPadrao) {
+      const saldoAtual = contaBancariaPadrao.saldo || 0;
+      if (saldoAtual < totalPix) {
+        throw new Error(
+          `Saldo insuficiente na conta bancária para estornar PIX. Saldo atual: ${saldoAtual}, Valor a estornar: ${totalPix}`
+        );
+      }
+    }
+
+    if (os.itens && os.itens.length > 0) {
+      for (const item of os.itens) {
+        const produto = await Produto.findOne({
+          codigo_loja,
+          codigo_empresa,
+          codigo_produto: item.codigo_produto,
+        }).session(session);
+
+        if (produto) {
+          const configuracaoEstoque =
+            produto.configuracoes[0]?.controla_estoque || "SIM";
+
+          if (
+            configuracaoEstoque === "SIM" ||
+            configuracaoEstoque === "PERMITE_NEGATIVO"
+          ) {
+            produto.estoque[0].estoque += item.quantidade;
+            await produto.save({ session });
+          }
         }
       }
     }
@@ -765,7 +985,7 @@ exports.cancelarOs = async (req, res) => {
           $or: [
             { documento_origem: String(os.codigo_os) },
             { documento_origem: Number(os.codigo_os) },
-            { documento_origem: os.codigo_os }
+            { documento_origem: os.codigo_os },
           ],
           origem: "os",
           status: "aberto",
@@ -775,83 +995,93 @@ exports.cancelarOs = async (req, res) => {
         {
           status: "cancelado",
           data_cancelamento: new Date(),
-          observacao_cancelamento: "OS cancelada"
+          observacao_cancelamento: "OS cancelada",
         },
         { session }
       );
     }
 
-    const movimentacoes = await Movimentacao.find({
-      $or: [
-        { documento_origem: String(os.codigo_os) },
-        { documento_origem: Number(os.codigo_os) },
-        { documento_origem: os.codigo_os }
-      ],
-      codigo_loja,
-      codigo_empresa,
-      origem: "os",
-    }).session(session);
+    const movimentacoesEstorno = [];
 
-    const caixaAtual = await Caixa.findOne({
-      codigo_loja: os.codigo_loja,
-      codigo_empresa: os.codigo_empresa,
-      status: "aberto",
-    }).session(session);
-
-    if (!caixaAtual) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        message: "Nenhum caixa aberto encontrado para realizar o cancelamento"
-      });
-    }
-
-    for (const movimentacao of movimentacoes) {
-      if (movimentacao.caixaId.toString() !== caixaAtual._id.toString()) {
-        const novaMovimentacao = new Movimentacao({
-          codigo_loja: os.codigo_loja,
-          codigo_empresa: os.codigo_empresa,
-          codigo_movimento: codigo_movimento || Date.now(),
+    if (os.forma_pagamento && os.forma_pagamento.length > 0) {
+      os.forma_pagamento.forEach((pagamento) => {
+        const movimentacao = {
+          codigo_loja,
+          codigo_empresa,
           caixaId: caixaAtual._id,
+          codigo_movimento: codigo_movimento || Date.now(),
           caixa: caixaAtual.caixa,
           codigo_caixa: caixaAtual.codigo_caixa,
           tipo_movimentacao: "saida",
-          valor: movimentacao.valor,
-          meio_pagamento: movimentacao.meio_pagamento,
+          valor: pagamento.valor_pagamento,
+          meio_pagamento: pagamento.meio_pagamento,
           documento_origem: os.codigo_os,
-          origem: "os",
+          origem: "cancelamento_os",
           categoria_contabil: "estorno",
-          historico: "Cancelamento de OS",
-        });
+          observacao: `Estorno da OS ${os.codigo_os}`,
+        };
 
-        await novaMovimentacao.save({ session });
-      } else {
-        movimentacao.tipo_movimentacao = "saida";
-        movimentacao.categoria_contabil = "estorno";
-        movimentacao.historico = "Cancelamento de OS";
-        await movimentacao.save({ session });
-      }
+        const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+        if (meioPagamento === "pix" && contaBancariaPadrao) {
+          movimentacao.codigo_conta_bancaria =
+            contaBancariaPadrao.codigo_conta_bancaria;
+        }
+
+        movimentacoesEstorno.push(new Movimentacao(movimentacao));
+      });
+    }
+
+    if (totalDinheiro > 0) {
+      caixaAtual.saldo_final =
+        parseFloat(caixaAtual.saldo_final) - totalDinheiro;
+    }
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      const saldoAnteriorBanco = contaBancariaPadrao.saldo || 0;
+      contaBancariaPadrao.saldo = parseFloat(saldoAnteriorBanco) - totalPix;
     }
 
     os.status = "cancelada";
-    await os.save({ session });
+    os.data_cancelamento = new Date();
+    os.motivo_cancelamento =
+      req.body.motivo_cancelamento || "Cancelamento manual";
 
-    if (movimentacoes.length > 0) {
-      caixaAtual.saldo -= movimentacoes.reduce(
-        (total, mov) => total + mov.valor,
-        0
-      );
-      await caixaAtual.save({ session });
+    const saveOperations = [
+      ...movimentacoesEstorno.map((mov) => mov.save({ session })),
+      caixaAtual.save({ session }),
+      os.save({ session }),
+    ];
+
+    if (totalPix > 0 && contaBancariaPadrao) {
+      saveOperations.push(contaBancariaPadrao.save({ session }));
     }
+
+    await Promise.all(saveOperations);
 
     await session.commitTransaction();
 
-    res.status(200).json({
+    const response = {
       message: "Ordem de serviço cancelada com sucesso",
-      os: os
-    });
+      os: os,
+      saldoCaixaAtualizado: caixaAtual.saldo_final,
+      totalDinheiroEstornado: totalDinheiro,
+    };
 
+    if (totalPix > 0 && contaBancariaPadrao) {
+      response.saldoContaBancariaAtualizado = contaBancariaPadrao.saldo;
+      response.totalPixEstornado = totalPix;
+      response.contaBancaria = {
+        codigo_conta_bancaria: contaBancariaPadrao.codigo_conta_bancaria,
+        descricao:
+          contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco,
+      };
+    }
+
+    res.status(200).json(response);
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     console.error("Erro ao cancelar OS:", error);
     res.status(500).json({ error: error.message });
   } finally {

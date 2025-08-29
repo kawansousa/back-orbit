@@ -57,6 +57,21 @@ const parcelasVendaSchema = new mongoose.Schema({
 
 }, { _id: false });
 
+const dadosTransferenciaSchema = new mongoose.Schema({
+  codigo_conta_bancaria: {
+    type: Number,
+  },
+  conta_bancaria: {
+    type: String,
+  },
+  agencia : {
+    type: Number, 
+  },
+  conta: {
+    type: Number,
+  }
+})
+
 const pagamentoVendaSchema = new mongoose.Schema({
   meio_pagamento: {
     type: String,
@@ -66,7 +81,8 @@ const pagamentoVendaSchema = new mongoose.Schema({
   valor_pagamento: {
     type: Number,
     required: true
-  }
+  },
+  dados_transferencia: dadosTransferenciaSchema,
 }, { _id: false });
 
 // Schema principal de Venda

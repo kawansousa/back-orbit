@@ -252,6 +252,8 @@ exports.createOs = async (req, res) => {
 
     let caixa = null;
     let totalPix = 0;
+    let totalTransferencia = 0;
+    const transferenciasDetalhadas = [];
 
     if (status === "faturado") {
       caixa = await Caixa.findOne({
@@ -298,6 +300,8 @@ exports.createOs = async (req, res) => {
       conta_padrao: true,
     }).session(session);
 
+    const contasBancariasAtualizadas = [];
+
     if (status === "faturado") {
       const totalDinheiroAdicionado = atualizarSaldoCaixa(
         caixa,
@@ -326,6 +330,10 @@ exports.createOs = async (req, res) => {
           movimentacao.codigo_conta_bancaria =
             contaBancariaPadrao.codigo_conta_bancaria;
         }
+        if (meioPagamento === "transferencia") {
+          movimentacao.codigo_conta_bancaria =
+            pagamento.dados_transferencia.codigo_conta_bancaria;
+        }
 
         return new Movimentacao(movimentacao);
       });
@@ -335,12 +343,44 @@ exports.createOs = async (req, res) => {
         if (meioPagamento === "pix") {
           totalPix += parseFloat(pagamento.valor_pagamento);
         }
+
+        if (meioPagamento === "transferencia") {
+          totalTransferencia += parseFloat(pagamento.valor_pagamento);
+
+          transferenciasDetalhadas.push({
+            valor: parseFloat(pagamento.valor_pagamento),
+            codigo_conta_bancaria:
+              pagamento.dados_transferencia.codigo_conta_bancaria,
+          });
+        }
       });
 
       if (totalPix > 0 && contaBancariaPadrao) {
         const saldoAnteriorBanco = contaBancariaPadrao.saldo || 0;
         contaBancariaPadrao.saldo =
           parseFloat(saldoAnteriorBanco) + parseFloat(totalPix);
+      }
+
+      if (totalTransferencia > 0) {
+        for (const transferencia of transferenciasDetalhadas) {
+          const contaBancaria = await ContasBancarias.findOne({
+            codigo_loja,
+            codigo_empresa,
+            codigo_conta_bancaria: transferencia.codigo_conta_bancaria,
+          }).session(session);
+
+          if (!contaBancaria) {
+            throw new Error(
+              `Conta Bancaria não encontrada: ${transferencia.codigo_conta_bancaria}`
+            );
+          }
+
+          const saldoAnterior = contaBancaria.saldo || 0;
+          contaBancaria.saldo =
+            parseFloat(saldoAnterior) + parseFloat(transferencia.valor);
+
+          contasBancariasAtualizadas.push(contaBancaria);
+        }
       }
 
       const recebimentos = [];
@@ -427,6 +467,12 @@ exports.createOs = async (req, res) => {
         saveOperations.push(contaBancariaPadrao.save({ session }));
       }
 
+      if (contasBancariasAtualizadas.length > 0) {
+        contasBancariasAtualizadas.forEach((conta) => {
+          saveOperations.push(conta.save({ session }));
+        });
+      }
+
       await Promise.all(saveOperations);
     } else {
       await novaOs.save({ session });
@@ -449,6 +495,15 @@ exports.createOs = async (req, res) => {
         descricao:
           contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco,
       };
+    }
+
+    if (status === "faturado" && totalTransferencia > 0) {
+      response.totalTransferenciaAdicionado = totalTransferencia;
+      response.contaTransferencia = contasBancariasAtualizadas.map((conta) => ({
+        codigo_conta_bancaria: conta.codigo_conta_bancaria,
+        conta_bancaria: conta.conta_bancaria,
+        saldoAtualizado: conta.saldo,
+      }));
     }
 
     res.status(201).json(response);
@@ -583,6 +638,22 @@ exports.updateOs = async (req, res) => {
     let totalPixAntigo = 0;
     let totalPixNovo = 0;
 
+    let movimentacaoCorreta = null;
+    let totalTransferenciaAntiga = 0;
+    let totalTransferenciaNova = 0;
+    const transferenciasAntigasDetalhadas = [];
+    const transferenciasNovasDetalhadas = [];
+
+    const contasBancariasAntigasEstornadas = [];
+    const contasBancariasNovasAtualizadas = [];
+
+    const formasPagamentoAntigas = osExistente.forma_pagamento || [];
+    const totalDinheiroRevertido = atualizarSaldoCaixa(
+      caixaAberto,
+      formasPagamentoAntigas,
+      "subtrair"
+    );
+
     if (osExistente.status === "faturado") {
       const todasMovimentacoes = await Movimentacao.find({
         $or: [
@@ -594,8 +665,6 @@ exports.updateOs = async (req, res) => {
         codigo_loja,
         codigo_empresa,
       }).session(session);
-
-      let movimentacaoCorreta = null;
 
       if (caixaAberto) {
         movimentacaoCorreta = todasMovimentacoes.find(
@@ -618,13 +687,6 @@ exports.updateOs = async (req, res) => {
           }
         }
 
-        const formasPagamentoAntigas = osExistente.forma_pagamento || [];
-        const totalDinheiroRevertido = atualizarSaldoCaixa(
-          caixaAberto,
-          formasPagamentoAntigas,
-          "subtrair"
-        );
-
         formasPagamentoAntigas.forEach((pagamento) => {
           const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
           if (meioPagamento === "pix") {
@@ -636,6 +698,35 @@ exports.updateOs = async (req, res) => {
           const saldoAnteriorBanco = contaBancariaPadrao.saldo || 0;
           contaBancariaPadrao.saldo =
             parseFloat(saldoAnteriorBanco) - totalPixAntigo;
+        }
+      }
+
+      formasPagamentoAntigas.forEach((pagamento) => {
+        const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+        if (meioPagamento === "transferencia") {
+          totalTransferenciaAntiga += parseFloat(pagamento.valor_pagamento);
+          transferenciasAntigasDetalhadas.push({
+            valor: parseFloat(pagamento.valor_pagamento),
+            codigo_conta_bancaria:
+              pagamento.dados_transferencia.codigo_conta_bancaria,
+          });
+        }
+      });
+
+      if (totalTransferenciaAntiga > 0) {
+        for (const transferencia of transferenciasAntigasDetalhadas) {
+          const contaBancaria = await ContasBancarias.findOne({
+            codigo_loja,
+            codigo_empresa,
+            codigo_conta_bancaria: transferencia.codigo_conta_bancaria,
+          }).session(session);
+
+          if (contaBancaria) {
+            const saldoAnterior = contaBancaria.saldo || 0;
+            contaBancaria.saldo =
+              parseFloat(saldoAnterior) - transferencia.valor;
+            contasBancariasAntigasEstornadas.push(contaBancaria);
+          }
         }
       }
 
@@ -735,6 +826,38 @@ exports.updateOs = async (req, res) => {
         }
       }
 
+      forma_pagamento.forEach((pagamento) => {
+        const meioPagamento = pagamento.meio_pagamento.toLowerCase().trim();
+        if (meioPagamento === "transferencia") {
+          totalTransferenciaNova += parseFloat(pagamento.valor_pagamento);
+          transferenciasNovasDetalhadas.push({
+            valor: parseFloat(pagamento.valor_pagamento),
+            codigo_conta_bancaria:
+              pagamento.dados_transferencia.codigo_conta_bancaria,
+          });
+        }
+      });
+
+      if (totalTransferenciaNova > 0) {
+        for (const transferencia of transferenciasNovasDetalhadas) {
+          const contaBancaria = await ContasBancarias.findOne({
+            codigo_loja,
+            codigo_empresa,
+            codigo_conta_bancaria: transferencia.codigo_conta_bancaria,
+          }).session(session);
+
+          if (!contaBancaria) {
+            throw new Error(
+              `Conta bancaria não encontrada: ${transferencia.codigo_conta_bancaria}`
+            );
+          }
+
+          const saldoAnterior = contaBancaria.saldo || 0;
+          contaBancaria.saldo = parseFloat(saldoAnterior) + transferencia.valor;
+          contasBancariasNovasAtualizadas.push(contaBancaria);
+        }
+      }
+
       if (forma_pagamento && forma_pagamento.length > 0) {
         for (const pagamento of forma_pagamento) {
           const movimentacao = {
@@ -757,6 +880,14 @@ exports.updateOs = async (req, res) => {
           if (meioPagamento === "pix" && contaBancariaPadrao) {
             movimentacao.codigo_conta_bancaria =
               contaBancariaPadrao.codigo_conta_bancaria;
+          }
+
+          if (
+            meioPagamento === "transferencia" &&
+            pagamento.dados_transferencia
+          ) {
+            movimentacao.codigo_conta_bancaria =
+              pagamento.dados_transferencia.codigo_conta_bancaria;
           }
 
           const novaMovimentacao = new Movimentacao(movimentacao);
@@ -836,6 +967,18 @@ exports.updateOs = async (req, res) => {
       saveOperations.push(contaBancariaPadrao.save({ session }));
     }
 
+    if (contasBancariasAntigasEstornadas.length > 0) {
+      contasBancariasAntigasEstornadas.forEach((conta) => {
+        saveOperations.push(conta.save({ session }));
+      });
+    }
+
+    if (contasBancariasNovasAtualizadas.length > 0) {
+      contasBancariasNovasAtualizadas.forEach((conta) => {
+        saveOperations.push(conta.save({ session }));
+      });
+    }
+
     await Promise.all(saveOperations);
 
     await session.commitTransaction();
@@ -855,6 +998,23 @@ exports.updateOs = async (req, res) => {
         codigo_conta_bancaria: contaBancariaPadrao.codigo_conta_bancaria,
         descricao:
           contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco,
+      };
+    }
+
+    if (totalTransferenciaAntiga > 0 || totalTransferenciaNova > 0) {
+      response.totalTransferenciaEstornado = totalTransferenciaAntiga;
+      response.totalTransferenciaAdicionado = totalTransferenciaNova;
+      response.contasTransferencia = {
+        estornadas: contasBancariasAntigasEstornadas.map((conta) => ({
+          codigo_conta_bancaria: conta.codigo_conta_bancaria,
+          conta_bancaria: conta.conta_bancaria,
+          saldo: conta.saldo,
+        })),
+        atualizadas: contasBancariasNovasAtualizadas.map((conta) => ({
+          codigo_conta_bancaria: conta.codigo_conta_bancaria,
+          conta_bancaria: conta.conta_bancaria,
+          saldo: conta.saldo,
+        })),
       };
     }
 
@@ -925,6 +1085,8 @@ exports.cancelarOs = async (req, res) => {
 
     let totalDinheiro = 0;
     let totalPix = 0;
+    let totalTransferencia = 0;
+    const transferenciasDetalhadas = [];
 
     if (os.forma_pagamento && os.forma_pagamento.length > 0) {
       os.forma_pagamento.forEach((pagamento) => {
@@ -935,6 +1097,13 @@ exports.cancelarOs = async (req, res) => {
           totalDinheiro += valor;
         } else if (meioPagamento === "pix") {
           totalPix += valor;
+        } else if (meioPagamento === "transferencia") {
+          totalTransferencia += valor;
+          transferenciasDetalhadas.push({
+            valor: valor,
+            codigo_conta_bancaria:
+              pagamento.dados_transferencia.codigo_conta_bancaria,
+          });
         }
       });
     }
@@ -953,6 +1122,34 @@ exports.cancelarOs = async (req, res) => {
         throw new Error(
           `Saldo insuficiente na conta bancária para estornar PIX. Saldo atual: ${saldoAtual}, Valor a estornar: ${totalPix}`
         );
+      }
+    }
+
+    const contasBancariasEstornadas = [];
+    if (totalTransferencia > 0) {
+      for (const transferencia of transferenciasDetalhadas) {
+        const contaBancaria = await ContasBancarias.findOne({
+          codigo_loja,
+          codigo_empresa,
+          codigo_conta_bancaria: transferencia.codigo_conta_bancaria,
+        }).session(session);
+
+        if (!contaBancaria) {
+          console.warn(
+            `Conta bancaria não encontrada para estorno: ${transferencia.codigo_conta_bancaria}`
+          );
+          continue;
+        }
+
+        const saldoAtual = contaBancaria.saldo || 0;
+        if (saldoAtual < transferencia.valor) {
+          throw new Error(
+            `Saldo Insuficiente na conta ${contaBancaria.conta_bancaria}`
+          );
+        }
+
+        contaBancaria.saldo = parseFloat(saldoAtual) - transferencia.valor;
+        contasBancariasEstornadas.push(contaBancaria);
       }
     }
 
@@ -1027,6 +1224,11 @@ exports.cancelarOs = async (req, res) => {
             contaBancariaPadrao.codigo_conta_bancaria;
         }
 
+        if (meioPagamento == "transferencia") {
+          movimentacao.codigo_conta_bancaria =
+            pagamento.dados_transferencia.codigo_conta_bancaria;
+        }
+
         movimentacoesEstorno.push(new Movimentacao(movimentacao));
       });
     }
@@ -1056,6 +1258,12 @@ exports.cancelarOs = async (req, res) => {
       saveOperations.push(contaBancariaPadrao.save({ session }));
     }
 
+    if (contasBancariasEstornadas.length > 0) {
+      contasBancariasEstornadas.forEach((conta) => {
+        saveOperations.push(conta.save({ session }));
+      });
+    }
+
     await Promise.all(saveOperations);
 
     await session.commitTransaction();
@@ -1075,6 +1283,17 @@ exports.cancelarOs = async (req, res) => {
         descricao:
           contaBancariaPadrao.descricao || contaBancariaPadrao.nome_banco,
       };
+    }
+
+    if (totalTransferencia > 0) {
+      response.totalTransferencia = totalTransferencia;
+      response.contasBancariasEstornada = contasBancariasEstornadas.map(
+        (conta) => ({
+          codigo_conta_bancaria: conta.codigo_conta_bancaria,
+          conta_bancaria: conta.conta_bancaria,
+          saldoAtualizado: conta.saldo,
+        })
+      );
     }
 
     res.status(200).json(response);

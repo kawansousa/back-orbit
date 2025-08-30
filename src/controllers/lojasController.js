@@ -53,14 +53,13 @@ exports.createLoja = async (req, res) => {
       .isLength({ min: 3, max: 150 })
       .withMessage("Razão social deve ter entre 3 e 150 caracteres")
       .custom(async (value, { req }) => {
-        const empresas = req.body.empresas;
-        const empresaExistente = empresas.find(
-          (empresa) => empresa.razao === value
-        );
-        if (empresaExistente) {
-          throw new Error("Empresa com essa razão social ja cadastrada");
+        const EmpresaExistente = await Loja.findOne({
+          "empresas.razao": value
+        })
+        if (EmpresaExistente) {
+          throw new Error("Empresa com essa razão social ja cadastrada")
         }
-        return true;
+        return
       }),
 
     body("empresas.*.nomeFantasia")
@@ -70,14 +69,12 @@ exports.createLoja = async (req, res) => {
       .isLength({ min: 3, max: 100 })
       .withMessage("Nome fantasia deve ter entre 3 e 100 caracteres")
       .custom(async (value, { req }) => {
-        const empresas = req.body.empresas;
-        const empresaExistente = empresas.find(
-          (empresa) => empresa.razao === value
-        );
-        if (empresaExistente) {
-          throw new Error("Empresa com essa razão social ja cadastrada");
+        const EmpresaExistente = await Loja.findOne({
+          "empresas.nomeFantasia": value
+        })
+        if (EmpresaExistente) {
+          throw new Error("Empresa com esse nome fantasia ja cadastrada")
         }
-        return true;
       }),
 
     body("empresas.*.cnpj")

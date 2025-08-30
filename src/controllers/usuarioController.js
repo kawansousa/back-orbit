@@ -134,3 +134,17 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.getUserByEmail = async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    const filtro = { email };
+
+    const userExistente = await User.findOne(filtro);
+
+    res.status(200).json(userExistente);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

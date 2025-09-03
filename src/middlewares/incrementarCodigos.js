@@ -23,7 +23,7 @@ module.exports = async function incrementarCodigos(req, res, next) {
     ) {
       req.body.empresas.forEach((empresa, index) => {
         if (!empresa.codigo_empresa) {
-          empresa.codigo_empresa = (index + 1).toString().padStart(3, "0");
+          empresa.codigo_empresa = (index + 1).toString();
 
           console.log(
             `Código da empresa ${index + 1} gerado: ${empresa.codigo_empresa}`

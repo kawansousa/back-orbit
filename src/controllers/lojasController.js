@@ -2,6 +2,7 @@ const { body, validationResult } = require("express-validator");
 const Loja = require("../models/lojas.model");
 const User = require("../models/user.model");
 const bcrypt = require("bcrypt");
+const { Role, ALL_PERMISSIONS } = require("../models/role.model");
 
 exports.createLoja = async (req, res) => {
   const validations = [
@@ -16,7 +17,6 @@ exports.createLoja = async (req, res) => {
         }
         return true;
       }),
-
     body("lojasNome")
       .trim()
       .notEmpty()
@@ -194,28 +194,21 @@ exports.createLoja = async (req, res) => {
       .normalizeEmail()
       .custom(async (value) => {
         const userExistente = await User.findOne({ email: value });
-        if (userExistente) {
+        if (userExistente)
           throw new Error("Email já está cadastrado no sistema");
-        }
         return true;
       }),
-
     body("password")
-      .isLength({ min: 8, max: 50 })
-      .withMessage("Senha deve ter entre 8 e 50 caracteres"),
+      .isLength({ min: 8 })
+      .withMessage("Senha deve ter no mínimo 8 caracteres"),
   ];
-  await Promise.all(validations.map((validation) => validation.run(req)));
 
+  await Promise.all(validations.map((validation) => validation.run(req)));
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
-      error: "Dados inválidos",
-      details: errors.array().map((err) => ({
-        field: err.path,
-        message: err.msg,
-        value: err.value,
-      })),
-    });
+    return res
+      .status(400)
+      .json({ error: "Dados inválidos", details: errors.array() });
   }
 
   const {
@@ -246,47 +239,16 @@ exports.createLoja = async (req, res) => {
       },
     }));
 
-    const permissoesPadrao = [
-      {
-        permissoes: {
-          vendas: {
-            desconto_limite: 100,
-            alterar: true,
-            cancelar: true,
-          },
-          cadastro: {
-            fornecedor: true,
-            cliente: true,
-            grupo: true,
-            usuario: true,
-          },
-          acessos: {
-            dashboard: true,
-            produto: true,
-            entrada: true,
-            saida: true,
-            etiqueta: true,
-            fornecedor: true,
-            cliente: true,
-            grupo: true,
-            usuario: true,
-            pdv: true,
-            orcamentos: true,
-            os: true,
-            servicos: true,
-            mecanicos: true,
-            caixa: true,
-            receber: true,
-            pagar: true,
-            gestao: true,
-            relatorios: true,
-            transferencia: true,
-            comandas: true,
-            trocas: true,
-          },
-        },
-      },
-    ];
+    const primeiraEmpresa = empresas[0];
+
+    const adminRole = new Role({
+      name: "Administrador",
+      description: "Acesso total ao sistema.",
+      permissions: ALL_PERMISSIONS,
+      codigo_loja: codigo_loja,
+      codigo_empresa: primeiraEmpresa.codigo_empresa,
+    });
+    await adminRole.save();
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -296,8 +258,7 @@ exports.createLoja = async (req, res) => {
       email,
       password: hashedPassword,
       acesso_loja: acessoLoja,
-      type: "Administrador",
-      permissions: permissoesPadrao,
+      role: adminRole._id,
     });
 
     await usuarioCriado.save();
@@ -507,14 +468,10 @@ exports.createEmpresa = async (req, res) => {
     const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
 
     if (!loja) {
-      return res.status(404).json({
-        error: "Loja não encontrada",
-        message: "Não foi possível encontrar a loja especificada",
-      });
+      return res.status(404).json({ error: "Loja não encontrada" });
     }
 
     const codigo_empresa = req.body.codigo_empresa;
-
     const novaEmpresa = {
       codigo_empresa,
       razao,
@@ -541,32 +498,30 @@ exports.createEmpresa = async (req, res) => {
       },
     };
 
-    await User.updateMany(
-      {
-        "acesso_loja.codigo_loja": codigo_loja,
-        type: "Administrador",
-      },
-      {
-        $push: { acesso_loja: novoAcesso },
-      }
-    );
+    const adminRole = await Role.findOne({
+      name: "Administrador",
+      codigo_loja: codigo_loja,
+    });
+
+    if (adminRole) {
+      await User.updateMany(
+        {
+          "acesso_loja.codigo_loja": codigo_loja,
+          role: adminRole._id,
+        },
+        {
+          $push: { acesso_loja: novoAcesso },
+        }
+      );
+    }
 
     res.status(201).json({
       message: "Empresa criada com sucesso!",
       empresa: novaEmpresa,
-      loja: {
-        codigo_loja: loja.codigo_loja,
-        lojasNome: loja.lojasNome,
-        total_empresas: loja.empresas.length,
-      },
     });
   } catch (error) {
     console.error("Erro ao criar empresa:", error);
-
-    res.status(500).json({
-      error: "Erro interno do servidor",
-      message: "Não foi possível criar a empresa. Tente novamente.",
-    });
+    res.status(500).json({ error: "Erro interno do servidor" });
   }
 };
 
@@ -581,7 +536,6 @@ exports.getEmpresaByLoja = async (req, res) => {
       });
     }
 
-    // Buscar a loja pelo código
     const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
 
     if (!loja) {
@@ -591,7 +545,6 @@ exports.getEmpresaByLoja = async (req, res) => {
       });
     }
 
-    // Procurar empresa dentro da loja
     const empresa = loja.empresas.id(empresaId);
 
     if (!empresa) {

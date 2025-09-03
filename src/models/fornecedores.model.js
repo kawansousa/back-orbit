@@ -1,18 +1,17 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const enderecoSchema = new mongoose.Schema({
-  endereco: { type: String },
-  numero: { type: String },
-  bairro: { type: String },
-  cidade: { type: String },
-  estado: { type: String },
-  cep: { type: String },
-}, { _id: false });
+const enderecoSchema = new mongoose.Schema(
+  {
+    endereco: { type: String },
+    numero: { type: String },
+    bairro: { type: String },
+    cidade: { type: String },
+    estado: { type: String },
+    cep: { type: String },
+  },
+  { _id: false }
+);
 
-// Schema de Conjugue
-
-
-// Schema de Cliente
 const fornecedorSchema = new mongoose.Schema({
   codigo_loja: {
     type: String,
@@ -24,15 +23,14 @@ const fornecedorSchema = new mongoose.Schema({
   },
   codigo_fornecedor: {
     type: Number,
-    unique: true
   },
   razao_social: {
     type: String,
-    default: '',
+    default: "",
   },
   nome_fantasia: {
     type: String,
-    default: '',
+    default: "",
   },
   cnpj: {
     type: String,
@@ -53,16 +51,14 @@ const fornecedorSchema = new mongoose.Schema({
   endereco: enderecoSchema,
   status: {
     type: String,
-    default: 'ativo', // 'ativo', 'inativo'
+    default: "ativo",
   },
   data_cadastro: {
     type: Date,
     default: Date.now,
   },
 });
-// Índice composto para garantir que o código do cliente seja único por loja e empresa
-// fornecedorSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_fornecedor: 1 }, { unique: true });
 
-const Fornecedor = mongoose.model('Fornecedor', fornecedorSchema);
+const Fornecedor = mongoose.model("Fornecedor", fornecedorSchema);
 
 module.exports = Fornecedor;

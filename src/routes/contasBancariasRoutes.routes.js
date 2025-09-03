@@ -2,55 +2,50 @@ const express = require("express");
 const router = express.Router();
 const contasBancariasController = require("../controllers/contasBancariasController");
 const autoIncrementContasBancariasController = require("../middlewares/autoIncrementContasBancariasController");
-const autoIncrementMovimentoBanco = require("../middlewares/autoIncrementMovimento");
+const autoIncrementMovimentoBanco = require("../middlewares/autoIncrementMovimentoBanco");
+const auth = require("../middlewares/auth");
+const checkPermission = require("../middlewares/checkPermission");
 
+router.use(auth);
 
 router.get(
-  "/movimentacaoBanco",
-  contasBancariasController.listaMovimentacaoContaBancaria
-);
-router.get(
-  "/conta-padrao",
-  contasBancariasController.obterContaPadrao
-);
-router.get(
-  "/", 
+  "/",
+  checkPermission("conta_bancaria:ler"),
   contasBancariasController.listarContasBancarias
 );
 router.get(
-  "/saldoTotal", 
-  contasBancariasController.saldoTotalContasBancarias
+  "/movimentacaoBanco",
+  checkPermission("conta_bancaria:ler"),
+  contasBancariasController.listaMovimentacaoContaBancaria
 );
 router.get(
-  "/:id", 
+  "/:id",
+  checkPermission("conta_bancaria:ler"),
   contasBancariasController.listarContaBancaria
 );
-router.post(
-  "/registraMovimentacaoBanco",
-  autoIncrementMovimentoBanco,
-  contasBancariasController.registrarMovimentacaoBanco
-);
+
 router.post(
   "/",
+  checkPermission("conta_bancaria:criar"),
   autoIncrementContasBancariasController,
   contasBancariasController.adicionarContaBancaria
 );
+router.post(
+  "/registraMovimentacaoBanco",
+  checkPermission("conta_bancaria:movimentar"),
+  autoIncrementMovimentoBanco,
+  contasBancariasController.registrarMovimentacaoBanco
+);
 
 router.put(
-  "/definir-padrao",
-  contasBancariasController.definirContaPadrao
-);
-router.put(
-  "/:id", 
+  "/:id",
+  checkPermission("conta_bancaria:atualizar"),
   contasBancariasController.atualizarContaBancaria
 );
 
-router.delete (
-  "/remover-padrao",
-  contasBancariasController.removerContaPadrao
-);
 router.delete(
-  "/:id", 
+  "/:id",
+  checkPermission("conta_bancaria:deletar"),
   contasBancariasController.excluirContaBancaria
 );
 

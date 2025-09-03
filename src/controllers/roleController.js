@@ -1,0 +1,137 @@
+const { Role } = require("../models/role.model");
+const User = require("../models/user.model");
+
+exports.createRole = async (req, res) => {
+  try {
+    const { name, description, permissions, codigo_loja, codigo_empresa } =
+      req.body;
+    if (!name || !codigo_loja || !codigo_empresa) {
+      return res.status(400).json({
+        message:
+          "Nome da função, código da loja e da empresa são obrigatórios.",
+      });
+    }
+    const existingRole = await Role.findOne({
+      name,
+      codigo_loja,
+      codigo_empresa,
+    });
+    if (existingRole) {
+      return res.status(409).json({
+        message: "Uma função com este nome já existe para esta empresa.",
+      });
+    }
+    const newRole = new Role({
+      name,
+      description,
+      permissions,
+      codigo_loja,
+      codigo_empresa,
+    });
+    await newRole.save();
+    res
+      .status(201)
+      .json({ message: "Função criada com sucesso.", role: newRole });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getRoles = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa } = req.query;
+    if (!codigo_loja || !codigo_empresa) {
+      return res
+        .status(400)
+        .json({ message: "Código da loja e da empresa são obrigatórios." });
+    }
+    const roles = await Role.find({ codigo_loja, codigo_empresa });
+    res.status(200).json(roles);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getRoleById = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa } = req.query;
+    const roleId = req.params.id;
+    if (!codigo_loja || !codigo_empresa) {
+      return res
+        .status(400)
+        .json({ message: "Código da loja e da empresa são obrigatórios." });
+    }
+    const role = await Role.findOne({
+      _id: roleId,
+      codigo_loja,
+      codigo_empresa,
+    });
+    if (!role) {
+      return res
+        .status(404)
+        .json({ message: "Função não encontrada nesta empresa." });
+    }
+    res.status(200).json(role);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateRole = async (req, res) => {
+  try {
+    const { name, description, permissions, codigo_loja, codigo_empresa } =
+      req.body;
+    const roleId = req.params.id;
+    if (!codigo_loja || !codigo_empresa) {
+      return res
+        .status(400)
+        .json({ message: "Código da loja e da empresa são obrigatórios." });
+    }
+    const updatedRole = await Role.findOneAndUpdate(
+      { _id: roleId, codigo_loja, codigo_empresa },
+      { name, description, permissions },
+      { new: true, runValidators: true }
+    );
+    if (!updatedRole) {
+      return res
+        .status(404)
+        .json({ message: "Função não encontrada nesta empresa." });
+    }
+    res
+      .status(200)
+      .json({ message: "Função atualizada com sucesso.", role: updatedRole });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteRole = async (req, res) => {
+  try {
+    const roleId = req.params.id;
+    const { codigo_loja, codigo_empresa } = req.query;
+    if (!codigo_loja || !codigo_empresa) {
+      return res
+        .status(400)
+        .json({ message: "Código da loja e da empresa são obrigatórios." });
+    }
+    const userWithRole = await User.findOne({ role: roleId });
+    if (userWithRole) {
+      return res.status(400).json({
+        message: "Não é possível deletar esta função, pois está em uso.",
+      });
+    }
+    const deletedRole = await Role.findOneAndDelete({
+      _id: roleId,
+      codigo_loja,
+      codigo_empresa,
+    });
+    if (!deletedRole) {
+      return res
+        .status(404)
+        .json({ message: "Função não encontrada nesta empresa." });
+    }
+    res.status(200).json({ message: "Função deletada com sucesso." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

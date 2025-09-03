@@ -1,17 +1,55 @@
-// routes/produtos.routes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const ProdutosController = require('../controllers/produtosController');
-const autoIncrementProduto = require('../middlewares/autoIncrementProduto');
-const authUser = require('../middlewares/authUser');
+const ProdutosController = require("../controllers/produtosController");
+const autoIncrementProduto = require("../middlewares/autoIncrementProduto");
+const auth = require("../middlewares/auth");
+const checkPermission = require("../middlewares/checkPermission");
+const gruposController = require("../controllers/gruposController");
 
-// Criar novo produto com middleware
-router.post('/produtos', autoIncrementProduto, ProdutosController.createProduto);
-router.get('/produtos', ProdutosController.getProdutos);
-router.get('/produtos/:id', ProdutosController.getProdutosById);
-router.put('/produtos/:id', ProdutosController.updateProduto);
-router.post('/produtosImportacao', ProdutosController.importProdutosFromExcel);
-router.post('/clientesImportacao', ProdutosController.importClientesFromExcel);
-router.get('/sicronizacao', ProdutosController.syncProdutos);
+router.use(auth);
+
+router.get(
+  "/produtos",
+  checkPermission("produto:ler"),
+  ProdutosController.getProdutos
+);
+router.get(
+  "/grupos/ativos",
+  checkPermission("produto:ler"),
+  gruposController.getGruposAtivos
+);
+router.get(
+  "/produtos/:id",
+  checkPermission("produto:ler"),
+  ProdutosController.getProdutosById
+);
+router.get(
+  "/sicronizacao",
+  checkPermission("produto:ler"),
+  ProdutosController.syncProdutos
+);
+
+router.post(
+  "/produtos",
+  checkPermission("produto:criar"),
+  autoIncrementProduto,
+  ProdutosController.createProduto
+);
+router.post(
+  "/produtosImportacao",
+  checkPermission("produto:importar"),
+  ProdutosController.importProdutosFromExcel
+);
+router.post(
+  "/clientesImportacao",
+  checkPermission("cliente:criar"),
+  ProdutosController.importClientesFromExcel
+);
+
+router.put(
+  "/produtos/:id",
+  checkPermission("produto:atualizar"),
+  ProdutosController.updateProduto
+);
 
 module.exports = router;

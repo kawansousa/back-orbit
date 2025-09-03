@@ -15,8 +15,16 @@ exports.createGrupos = async (req, res) => {
     body("descricao")
       .notEmpty()
       .withMessage('O campo "descricao" é obrigatório')
-      .custom(async (value) => {
-        const grupoExistente = await Grupos.findOne({ descricao: value });
+      .custom(async (value, { req }) => {
+        const { codigo_loja, codigo_empresa } = req.body;
+
+        const query = {
+          descricao: value,
+          codigo_loja: codigo_loja,
+          codigo_empresa: codigo_empresa,
+        };
+        const grupoExistente = await Grupos.findOne(query);
+
         if (grupoExistente) {
           throw new Error("Grupo com essa descrição ja cadastrado");
         }
@@ -59,7 +67,8 @@ exports.createGrupos = async (req, res) => {
 
 exports.getGrupos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
+    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } =
+      req.query;
 
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
@@ -77,35 +86,36 @@ exports.getGrupos = async (req, res) => {
       codigo_empresa,
     };
 
-    if( searchTerm && searchTerm.trim() !== "") {
-      const termoBusca = searchTerm.trim()
+    if (searchTerm && searchTerm.trim() !== "") {
+      const termoBusca = searchTerm.trim();
 
       if (searchType === "todos") {
-        const conditions = []
+        const conditions = [];
 
         if (!isNaN(termoBusca)) {
-          conditions.push({ codigo_grupo : parseInt(termoBusca, 10)})
+          conditions.push({ codigo_grupo: parseInt(termoBusca, 10) });
         }
 
-        conditions.push({ descricao: { $regex: termoBusca, $options: "i"}})
+        conditions.push({ descricao: { $regex: termoBusca, $options: "i" } });
 
-        filtros.$or = conditions
+        filtros.$or = conditions;
       } else {
         switch (searchType) {
-          case "codigo_grupo" :
+          case "codigo_grupo":
             if (!isNaN(termoBusca)) {
-              filtros[searchType] = parseInt(termoBusca, 10)
+              filtros[searchType] = parseInt(termoBusca, 10);
             } else {
-              filtros[searchType] = -1
+              filtros[searchType] = -1;
             }
-            break
-            case "descrição":
-            filtros[searchType] = { $regex: termoBusca, $options: "i"}
-            break
-            default:
-              return res.status(400).json({
-                error: "Tipo de busca inválido. Use: todos, descricao ou codigo_grupo"
-              })
+            break;
+          case "descrição":
+            filtros[searchType] = { $regex: termoBusca, $options: "i" };
+            break;
+          default:
+            return res.status(400).json({
+              error:
+                "Tipo de busca inválido. Use: todos, descricao ou codigo_grupo",
+            });
         }
       }
     }
@@ -147,7 +157,7 @@ exports.getGruposAtivos = async (req, res) => {
     const filtros = {
       codigo_loja,
       codigo_empresa,
-      status: "ativo"
+      status: "ativo",
     };
 
     const grupos = await Grupos.find(filtros).skip(skip).limit(limitNumber);

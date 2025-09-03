@@ -1,13 +1,39 @@
-// routes/Clientes.routes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const autoIncrementGrupos = require('../middlewares/autoIncrementGrupos');
-const gruposController = require('../controllers/gruposController');
+const autoIncrementGrupos = require("../middlewares/autoIncrementGrupos");
+const gruposController = require("../controllers/gruposController");
+const auth = require("../middlewares/auth");
+const checkPermission = require("../middlewares/checkPermission");
 
-router.post("/", autoIncrementGrupos, gruposController.createGrupos);
-router.get("/", gruposController.getGrupos);
-router.get("/ativos", gruposController.getGruposAtivos);
-router.put("/:id", gruposController.updateGrupos)
-router.patch("/", gruposController.canceledGrupo)
+router.use(auth);
+
+router.get(
+  "/", 
+  checkPermission("grupo:ler"), 
+  gruposController.getGrupos);
+router.get(
+  "/ativos",
+  checkPermission("grupo:ler"),
+  gruposController.getGruposAtivos
+);
+
+router.post(
+  "/",
+  checkPermission("grupo:criar"),
+  autoIncrementGrupos,
+  gruposController.createGrupos
+);
+
+router.put(
+  "/:id",
+  checkPermission("grupo:atualizar"),
+  gruposController.updateGrupos
+);
+
+router.patch(
+  "/",
+  checkPermission("grupo:deletar"),
+  gruposController.canceledGrupo
+);
 
 module.exports = router;

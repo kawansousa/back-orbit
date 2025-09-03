@@ -1,14 +1,46 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const userController = require('../controllers/usuarioController');
+const userController = require("../controllers/usuarioController");
+const auth = require("../middlewares/auth");
+const checkPermission = require("../middlewares/checkPermission");
+const roleController = require("../controllers/roleController");
 
-router.get('/', userController.getUsers);
-router.get("/email", userController.getUserByEmail)
-router.get('/:id', userController.getUserById);
-router.post('/login', userController.loginUser);
-router.post('/', userController.createUser);
-router.put('/:id', userController.updateUser);
-router.delete('/:id', userController.deleteUser);
+router.post("/login", userController.loginUser);
 
+router.use(auth);
 
-module.exports = router; // Use "module.exports" para o ambiente CommonJS
+router.get(
+  "/", 
+  checkPermission("usuario:ler"), 
+  userController.getUsers);
+
+router.get(
+  "/", 
+  checkPermission("usuario:ler"), 
+  roleController.getRoles
+);
+router.get(
+  "/:id", 
+  checkPermission("usuario:ler"), 
+  userController.getUserById
+);
+
+router.post(
+  "/", 
+  checkPermission("usuario:criar"), 
+  userController.createUser
+);
+
+router.put(
+  "/:id",
+  checkPermission("usuario:atualizar"),
+  userController.updateUser
+);
+
+router.delete(
+  "/:id",
+  checkPermission("usuario:deletar"),
+  userController.deleteUser
+);
+
+module.exports = router;

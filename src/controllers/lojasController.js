@@ -241,14 +241,21 @@ exports.createLoja = async (req, res) => {
 
     const primeiraEmpresa = empresas[0];
 
-    const adminRole = new Role({
+    let adminRole = await Role.findOne({
       name: "Administrador",
-      description: "Acesso total ao sistema.",
-      permissions: ALL_PERMISSIONS,
       codigo_loja: codigo_loja,
-      codigo_empresa: primeiraEmpresa.codigo_empresa,
     });
-    await adminRole.save();
+
+    if (!adminRole) {
+      adminRole = new Role({
+        name: "Administrador",
+        description: "Acesso total ao sistema.",
+        permissions: ALL_PERMISSIONS,
+        codigo_loja: codigo_loja,
+        codigo_empresa: primeiraEmpresa.codigo_empresa,
+      });
+      await adminRole.save();
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -524,7 +531,6 @@ exports.createEmpresa = async (req, res) => {
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 };
-
 exports.getEmpresaByLoja = async (req, res) => {
   try {
     const { codigo_loja, empresaId } = req.query;

@@ -266,6 +266,7 @@ exports.createLoja = async (req, res) => {
       password: hashedPassword,
       acesso_loja: acessoLoja,
       role: adminRole._id,
+      status: "ativo",
     });
 
     await usuarioCriado.save();

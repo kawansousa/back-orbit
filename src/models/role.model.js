@@ -4,7 +4,7 @@ const ALL_PERMISSIONS = [
   "usuario:criar",
   "usuario:ler",
   "usuario:atualizar",
-  "usuario:deletar",
+  "usuario:inativar",
 
   "role:criar",
   "role:ler",

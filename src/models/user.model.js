@@ -26,12 +26,16 @@ const userSchema = new mongoose.Schema({
     required: true,
   },
   acesso_loja: [acessoEmpresasSchema],
-
   role: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Role",
     required: true,
   },
+  status: {
+    type: String,
+    enum: ["ativo", "inativo"],
+    default: "ativo",
+  }
 });
 
 const User = mongoose.model("User", userSchema);

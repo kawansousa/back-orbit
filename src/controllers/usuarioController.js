@@ -12,6 +12,10 @@ exports.loginUser = async (req, res) => {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
+    if (user.status === "inativo") {
+      return res.status(401).json({ message: "Usuário inativo. Contate o administrador." });
+    }
+
     const isMatch = await bcrypt.compare(senha, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Credenciais inválidas" });
@@ -38,12 +42,10 @@ exports.createUser = async (req, res) => {
   const { name, email, password, acesso_loja, roleId } = req.body;
   try {
     if (!name || !email || !password || !roleId || !acesso_loja) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Todos os campos, incluindo função e acesso à loja, são obrigatórios.",
-        });
+      return res.status(400).json({
+        message:
+          "Todos os campos, incluindo função e acesso à loja, são obrigatórios.",
+      });
     }
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -65,6 +67,7 @@ exports.createUser = async (req, res) => {
       password: hashedPassword,
       acesso_loja,
       role: roleId,
+      status: "ativo",
     });
     await user.save();
     const userResponse = user.toObject();
@@ -144,17 +147,40 @@ exports.updateUser = async (req, res) => {
     res.status(200).json(userResponse);
   } catch (error) {
     if (error.code === 11000) {
-        return res.status(400).json({ message: "Este e-mail já está em uso por outro usuário." });
+      return res
+        .status(400)
+        .json({ message: "Este e-mail já está em uso por outro usuário." });
     }
     res.status(500).json({ error: error.message });
   }
 };
 
-exports.deleteUser = async (req, res) => {
+exports.inactiveUser = async (req, res) => {
+  const { _id } = req.body;
+
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
-    res.status(200).json({ message: "Usuário deletado com sucesso" });
+    if (!_id) {
+      return res.status(400).json({
+        error: "O campo ID é obrigatório",
+      });
+    }
+
+    const inactivatedUser = await User.findOneAndUpdate(
+      { _id },
+      { status: "inativo" },
+      { new: true }
+    );
+
+    if (!inactivatedUser) {
+      return res.status(404).json({
+        error: "ID não encontrado",
+      });
+    }
+
+    res.status(200).json({
+      message: "Status do usuario atualizado para cancelado",
+      usuario: inactivatedUser,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -37,10 +37,10 @@ router.put(
   userController.updateUser
 );
 
-router.delete(
-  "/:id",
-  checkPermission("usuario:deletar"),
-  userController.deleteUser
+router.patch(
+  "/inativar",
+  checkPermission("usuario:inativar"),
+  userController.inactiveUser
 );
 
 module.exports = router;

@@ -1,4 +1,4 @@
-const Os = require("../models/os.model");
+    const Os = require("../models/os.model");
 
 async function autoIncrementOs(req, res, next) {
   try {

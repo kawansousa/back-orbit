@@ -97,7 +97,6 @@ const ALL_PERMISSIONS = [
   "empresa:criar",
   "dre:ler",
   "dre:pdf",
-  "cidade:ler",
 
   "admin:full_access",
 ];

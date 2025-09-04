@@ -11,6 +11,11 @@ router.get(
   checkPermission("role:ler"), 
   roleController.getRoles
 );
+router.get(
+  "/:id",
+  checkPermission("role:ler"),
+  roleController.getRoleById
+)
 
 router.post(
   "/", 

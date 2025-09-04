@@ -6,7 +6,6 @@ const jwt = require("jsonwebtoken");
 exports.loginUser = async (req, res) => {
   try {
     const { email, senha } = req.body;
-
     const user = await User.findOne({ email }).populate("role");
 
     if (!user) {
@@ -21,11 +20,10 @@ exports.loginUser = async (req, res) => {
     const payload = {
       id: user._id,
       email: user.email,
-      permissions: user.role ? user.role.permissions : [], 
+      permissions: user.role ? user.role.permissions : [],
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET);
-
     const userResponse = user.toObject();
     delete userResponse.password;
 
@@ -92,7 +90,7 @@ exports.getUsers = async (req, res) => {
           "codigo_empresas.codigo": codigo_empresas,
         },
       },
-    }).populate("role", "name"); 
+    }).populate("role", "name");
     res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -110,13 +108,44 @@ exports.getUserById = async (req, res) => {
 };
 
 exports.updateUser = async (req, res) => {
+  const { name, email, password, roleId } = req.body;
+  const { id } = req.params;
+
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, {
+    const updateData = { name, email };
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(password, salt);
+    }
+
+    if (roleId) {
+      const role = await Role.findById(roleId);
+      if (!role) {
+        return res
+          .status(400)
+          .json({ message: "A Função (Role) especificada não existe." });
+      }
+      updateData.role = roleId;
+    }
+
+    const user = await User.findByIdAndUpdate(id, updateData, {
       new: true,
-    });
-    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
-    res.status(200).json(user);
+      runValidators: true,
+    }).populate("role", "name");
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.status(200).json(userResponse);
   } catch (error) {
+    if (error.code === 11000) {
+        return res.status(400).json({ message: "Este e-mail já está em uso por outro usuário." });
+    }
     res.status(500).json({ error: error.message });
   }
 };

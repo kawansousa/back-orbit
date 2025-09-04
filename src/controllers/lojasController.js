@@ -253,6 +253,7 @@ exports.createLoja = async (req, res) => {
         permissions: ALL_PERMISSIONS,
         codigo_loja: codigo_loja,
         codigo_empresa: primeiraEmpresa.codigo_empresa,
+        status: "ativo"
       });
       await adminRole.save();
     }

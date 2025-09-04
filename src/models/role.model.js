@@ -129,6 +129,11 @@ const roleSchema = new mongoose.Schema(
         },
       },
     ],
+    status: {
+      type: String,
+      enum: ["ativo", "inativo"],
+      default: "ativo",
+    },
   },
   { timestamps: true }
 );

@@ -29,8 +29,8 @@ router.put(
   roleController.updateRole
 );
 
-router.delete(
-  "/:id",
+router.patch(
+  "/inativar",
   checkPermission("role:deletar"),
   roleController.deleteRole
 );

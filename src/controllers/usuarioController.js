@@ -16,6 +16,10 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: "Usuário inativo. Contate o administrador." });
     }
 
+    if (user.role && user.role.status === 'inativo') {
+      return res.status(401).json({ message: "Sua função de usuário está inativa. Contate o administrador." });
+    }
+
     const isMatch = await bcrypt.compare(senha, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Credenciais inválidas" });
@@ -178,7 +182,7 @@ exports.inactiveUser = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Status do usuario atualizado para cancelado",
+      message: "Status do usuario atualizado para inativo",
       usuario: inactivatedUser,
     });
   } catch (error) {

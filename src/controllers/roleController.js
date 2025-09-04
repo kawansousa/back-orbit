@@ -27,6 +27,7 @@ exports.createRole = async (req, res) => {
       permissions,
       codigo_loja,
       codigo_empresa,
+      status: "ativo"
     });
     await newRole.save();
     res
@@ -107,30 +108,30 @@ exports.updateRole = async (req, res) => {
 
 exports.deleteRole = async (req, res) => {
   try {
-    const roleId = req.params.id;
-    const { codigo_loja, codigo_empresa } = req.query;
-    if (!codigo_loja || !codigo_empresa) {
-      return res
-        .status(400)
-        .json({ message: "Código da loja e da empresa são obrigatórios." });
-    }
-    const userWithRole = await User.findOne({ role: roleId });
-    if (userWithRole) {
+    const { _id } = req.body
+
+    if(!_id) {
       return res.status(400).json({
-        message: "Não é possível deletar esta função, pois está em uso.",
-      });
+        error: "O campo ID é obrigatório"
+      })
     }
-    const deletedRole = await Role.findOneAndDelete({
-      _id: roleId,
-      codigo_loja,
-      codigo_empresa,
-    });
+
+    const deletedRole = await Role.findByIdAndUpdate(
+      { _id },
+      { status: "inativo"},
+      { new: true }
+    )
+
     if (!deletedRole) {
-      return res
-        .status(404)
-        .json({ message: "Função não encontrada nesta empresa." });
+      return res.status(404).json({
+        error: "ID não encontrado"
+      })
     }
-    res.status(200).json({ message: "Função deletada com sucesso." });
+
+    res.status(200).json({
+      message: "Status da função ataulizado para inativo",
+      role: deletedRole
+    })
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

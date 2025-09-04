@@ -161,12 +161,32 @@ exports.updateUser = async (req, res) => {
 
 exports.inactiveUser = async (req, res) => {
   const { _id } = req.body;
+  const requesterId = req.user.id;
 
   try {
     if (!_id) {
       return res.status(400).json({
         error: "O campo ID é obrigatório",
       });
+    }
+
+    if (_id === requesterId) {
+      return res.status(403).json({
+        error: "Ação não permitida. Você não pode desativar a si mesmo.",
+      });
+    }
+
+    const userToInactivate = await User.findById(_id).populate('role');
+    const requester = await User.findById(requesterId).populate('role');
+
+    if (!userToInactivate || !requester) {
+        return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    if (userToInactivate.role && requester.role && userToInactivate.role.id === requester.role.id) {
+        return res.status(403).json({
+            error: "Ação não permitida. Você não pode desativar um usuário com a mesma função.",
+        });
     }
 
     const inactivatedUser = await User.findOneAndUpdate(

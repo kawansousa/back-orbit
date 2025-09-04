@@ -108,30 +108,38 @@ exports.updateRole = async (req, res) => {
 
 exports.deleteRole = async (req, res) => {
   try {
-    const { _id } = req.body
+    const { _id } = req.body;
+    const requesterId = req.user.id;
 
-    if(!_id) {
+    if (!_id) {
       return res.status(400).json({
-        error: "O campo ID é obrigatório"
-      })
+        error: "O campo ID é obrigatório",
+      });
+    }
+
+    const requester = await User.findById(requesterId);
+    if (requester && requester.role.toString() === _id) {
+        return res.status(403).json({
+            error: "Ação não permitida. Você não pode desativar sua própria função.",
+        });
     }
 
     const deletedRole = await Role.findByIdAndUpdate(
       { _id },
-      { status: "inativo"},
+      { status: "inativo" },
       { new: true }
-    )
+    );
 
     if (!deletedRole) {
       return res.status(404).json({
-        error: "ID não encontrado"
-      })
+        error: "ID não encontrado",
+      });
     }
 
     res.status(200).json({
       message: "Status da função ataulizado para inativo",
-      role: deletedRole
-    })
+      role: deletedRole,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

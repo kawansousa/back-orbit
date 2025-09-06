@@ -10,6 +10,14 @@ router.post(
   incrementarCodigos, 
   lojasController.createLoja
 );
+
+router.get(
+  "/empresas",
+  auth,
+  checkPermission("empresa:ler"),
+  lojasController.listEmpresasByCodigoLoja
+);
+
 router.post(
   "/empresa",
   auth,
@@ -17,5 +25,12 @@ router.post(
   incrementarCodigos,
   lojasController.createEmpresa
 );
+
+router.put(
+  "/update-empresa/:empresaId",
+  auth,
+  checkPermission("empresa:atualizar"),
+  lojasController.updateEmpresa
+)
 
 module.exports = router;

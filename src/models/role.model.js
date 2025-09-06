@@ -93,8 +93,10 @@ const ALL_PERMISSIONS = [
   "conta_bancaria:deletar",
   "conta_bancaria:movimentar",
 
-  "loja:criar",
+  "empresa:ler",
   "empresa:criar",
+  "empresa:atualizar",
+
   "dre:ler",
   "dre:pdf",
 

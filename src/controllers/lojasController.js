@@ -54,12 +54,12 @@ exports.createLoja = async (req, res) => {
       .withMessage("Razão social deve ter entre 3 e 150 caracteres")
       .custom(async (value, { req }) => {
         const EmpresaExistente = await Loja.findOne({
-          "empresas.razao": value
-        })
+          "empresas.razao": value,
+        });
         if (EmpresaExistente) {
-          throw new Error("Empresa com essa razão social ja cadastrada")
+          throw new Error("Empresa com essa razão social ja cadastrada");
         }
-        return
+        return;
       }),
 
     body("empresas.*.nomeFantasia")
@@ -70,10 +70,10 @@ exports.createLoja = async (req, res) => {
       .withMessage("Nome fantasia deve ter entre 3 e 100 caracteres")
       .custom(async (value, { req }) => {
         const EmpresaExistente = await Loja.findOne({
-          "empresas.nomeFantasia": value
-        })
+          "empresas.nomeFantasia": value,
+        });
         if (EmpresaExistente) {
-          throw new Error("Empresa com esse nome fantasia ja cadastrada")
+          throw new Error("Empresa com esse nome fantasia ja cadastrada");
         }
       }),
 
@@ -253,7 +253,7 @@ exports.createLoja = async (req, res) => {
         permissions: ALL_PERMISSIONS,
         codigo_loja: codigo_loja,
         codigo_empresa: primeiraEmpresa.codigo_empresa,
-        status: "ativo"
+        status: "ativo",
       });
       await adminRole.save();
     }
@@ -499,29 +499,43 @@ exports.createEmpresa = async (req, res) => {
     loja.empresas.push(novaEmpresa);
     await loja.save();
 
-    const novoAcesso = {
+    const newAdminRole = new Role({
+      name: "Administrador",
+      description: "Acesso total ao sistema.",
+      permissions: ALL_PERMISSIONS,
       codigo_loja: codigo_loja,
-      codigo_empresas: {
-        codigo: codigo_empresa,
-        nome: nomeFantasia,
-      },
-    };
+      codigo_empresa: novaEmpresa.codigo_empresa,
+      status: "ativo",
+    });
+    await newAdminRole.save();
 
-    const adminRole = await Role.findOne({
+    const adminRolesInStore = await Role.find({
       name: "Administrador",
       codigo_loja: codigo_loja,
     });
 
-    if (adminRole) {
-      await User.updateMany(
-        {
-          "acesso_loja.codigo_loja": codigo_loja,
-          role: adminRole._id,
+    if (adminRolesInStore.length > 0) {
+      const adminRoleIds = adminRolesInStore.map((role) => role._id);
+
+      const novoAcesso = {
+        codigo_loja: codigo_loja,
+        codigo_empresas: {
+          codigo: novaEmpresa.codigo_empresa,
+          nome: novaEmpresa.nomeFantasia,
         },
-        {
-          $push: { acesso_loja: novoAcesso },
-        }
-      );
+      };
+
+      const query = {
+        role: { $in: adminRoleIds },
+      };
+
+      const resultadoUpdate = await User.updateMany(query, {
+        $push: { acesso_loja: novoAcesso },
+      });
+
+      console.log("Resultado da atualização de usuários administradores:");
+      console.log(`  Documentos encontrados: ${resultadoUpdate.matchedCount}`);
+      console.log(`  Documentos modificados: ${resultadoUpdate.modifiedCount}`);
     }
 
     res.status(201).json({
@@ -533,6 +547,130 @@ exports.createEmpresa = async (req, res) => {
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 };
+
+exports.updateEmpresa = async (req, res) => {
+  const validations = [
+    body("codigo_loja")
+      .trim()
+      .notEmpty()
+      .withMessage("Código da loja é obrigatório."),
+
+    body("razao")
+      .trim()
+      .notEmpty()
+      .withMessage("Razão social é obrigatória.")
+      .isLength({ min: 3, max: 150 })
+      .withMessage("Razão social deve ter entre 3 e 150 caracteres.")
+      .custom(async (value, { req }) => {
+        const empresaId = req.params.empresaId;
+        const loja = await Loja.findOne({ "empresas.razao": value });
+        if (loja) {
+          const empresaExistente = loja.empresas.find(e => e.razao === value);
+
+          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+            throw new Error("Já existe outra empresa com esta razão social.");
+          }
+        }
+        return true;
+      }),
+
+    body("nomeFantasia")
+      .trim()
+      .notEmpty()
+      .withMessage("Nome fantasia é obrigatório.")
+      .isLength({ min: 3, max: 100 })
+      .withMessage("Nome fantasia deve ter entre 3 e 100 caracteres.")
+       .custom(async (value, { req }) => {
+        const empresaId = req.params.empresaId;
+        const loja = await Loja.findOne({ "empresas.nomeFantasia": value });
+        if (loja) {
+          const empresaExistente = loja.empresas.find(e => e.nomeFantasia === value);
+          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+            throw new Error("Já existe outra empresa com este nome fantasia.");
+          }
+        }
+        return true;
+      }),
+
+    body("cnpj")
+      .trim()
+      .notEmpty()
+      .withMessage("CNPJ é obrigatório.")
+      .matches(/^\d{14}$/)
+      .withMessage("CNPJ deve conter apenas 14 números.")
+      .custom(async (value, { req }) => {
+        const empresaId = req.params.empresaId;
+        const loja = await Loja.findOne({ "empresas.cnpj": value });
+         if (loja) {
+          const empresaExistente = loja.empresas.find(e => e.cnpj === value);
+          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+            throw new Error("CNPJ já está cadastrado em outra empresa.");
+          }
+        }
+        return true;
+      }),
+
+    body("email")
+      .optional({ checkFalsy: true })
+      .isEmail()
+      .withMessage("Formato de e-mail inválido.")
+      .normalizeEmail(),
+
+    body("fone")
+      .optional({ checkFalsy: true })
+      .matches( /^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?9?[0-9]{4}-?[0-9]{4}$|^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?[2-5][0-9]{3}-?[0-9]{4}$/)
+      .withMessage("Formato de telefone inválido."),
+  ];
+
+  await Promise.all(validations.map((validation) => validation.run(req)));
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: "Dados inválidos",
+      details: errors.array(),
+    });
+  }
+
+  try {
+    const { empresaId } = req.params;
+    const { codigo_loja } = req.body;
+
+    const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
+
+    if (!loja) {
+      return res.status(404).json({ error: "Loja não encontrada." });
+    }
+
+    const empresa = loja.empresas.id(empresaId);
+
+    if (!empresa) {
+      return res.status(404).json({ error: "Empresa não encontrada nesta loja." });
+    }
+    
+    const nomeFantasiaAntigo = empresa.nomeFantasia;
+
+    empresa.set(req.body);
+
+    await loja.save();
+    
+    if (req.body.nomeFantasia && req.body.nomeFantasia !== nomeFantasiaAntigo) {
+        await User.updateMany(
+            { "acesso_loja.codigo_empresas.codigo": empresa.codigo_empresa },
+            { $set: { "acesso_loja.$.codigo_empresas.nome": req.body.nomeFantasia } }
+        );
+    }
+
+    res.status(200).json({
+      message: "Empresa atualizada com sucesso!",
+      empresa: empresa,
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar empresa:", error);
+    res.status(500).json({ error: "Erro interno do servidor ao atualizar a empresa." });
+  }
+};
+
 exports.getEmpresaByLoja = async (req, res) => {
   try {
     const { codigo_loja, empresaId } = req.query;
@@ -568,6 +706,39 @@ exports.getEmpresaByLoja = async (req, res) => {
     res.status(500).json({
       error: "Erro interno do servidor",
       message: "Não foi possível buscar a empresa",
+    });
+  }
+};
+
+exports.listEmpresasByCodigoLoja = async (req, res) => {
+  try {
+    const { codigo_loja } = req.query;
+
+    if (!codigo_loja) {
+      return res.status(400).json({
+        error: "Parâmetros inválidos",
+        message: "É necessário informar o código da loja (`codigo_loja`).",
+      });
+    }
+
+    const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
+
+    if (!loja) {
+      return res.status(404).json({
+        error: "Loja não encontrada",
+        message: "Nenhuma loja encontrada com esse código.",
+      });
+    }
+
+    res.status(200).json({
+      message: "Empresas encontradas com sucesso!",
+      empresas: loja.empresas,
+    });
+  } catch (error) {
+    console.error("Erro ao listar empresas da loja:", error);
+    res.status(500).json({
+      error: "Erro interno do servidor",
+      message: "Não foi possível listar as empresas.",
     });
   }
 };

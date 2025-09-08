@@ -14,16 +14,6 @@ const contasBancariasController = require("../controllers/contasBancariasControl
 router.use(auth);
 
 router.get(
-  "/:id/pdf",
-  checkPermission("venda:pdf"),
-  vendaController.generateVendaPDF
-);
-router.get(
-  "/:id", 
-  checkPermission("venda:ler"), 
-  vendaController.getVendaById
-);
-router.get(
   "/", 
   checkPermission("venda:ler"), 
   vendaController.listarVendas
@@ -52,6 +42,16 @@ router.get(
   "/contasBancarias",
   checkPermission("os:ler"),
   contasBancariasController.listarContasBancarias
+);
+router.get(
+  "/:id", 
+  checkPermission("venda:ler"), 
+  vendaController.getVendaById
+);
+router.get(
+  "/:id/pdf",
+  checkPermission("venda:pdf"),
+  vendaController.generateVendaPDF
 );
 
 router.post(

@@ -1,7 +1,8 @@
 const mongoose = require("mongoose");
 const Receber = require("../models/receber.model");
 const Caixa = require("../models/caixa.model");
-const Movimentacao = require("../models/movimentacoes_banco.model");
+const MovimentacaoCaixa = require("../models/movimentacoes_caixa.model");
+const ContasBancarias = require("../models/contas_bancarias.model");
 
 exports.criarReceber = async (req, res) => {
   const session = await mongoose.startSession();
@@ -429,6 +430,8 @@ exports.liquidarReceber = async (req, res) => {
       valor,
       meio_pagamento,
       observacao,
+      codigo_movimento,
+      dados_transferencia,
     } = req.body;
 
     if (!codigo_loja || !codigo_empresa) {
@@ -460,6 +463,7 @@ exports.liquidarReceber = async (req, res) => {
       "pix",
       "cartao_credito",
       "cartao_debito",
+      "transferencia",
       "cheque",
       "aprazo",
     ];
@@ -540,6 +544,67 @@ exports.liquidarReceber = async (req, res) => {
         session,
       }
     ).populate("cliente");
+
+    const caixa = await Caixa.findOne({
+      codigo_loja,
+      codigo_empresa,
+      status: "aberto",
+    }).session(session);
+
+    if (!caixa) {
+      await session.abortTransaction();
+      return res
+        .status(400)
+        .json({ error: "Nenhum caixa aberto encontrado para esta loja." });
+    }
+
+    const contaBancariaPadrao = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      conta_padrao: true,
+    }).session(session);
+
+    const ContaBancaria = await ContasBancarias.findOne({
+      codigo_loja,
+      codigo_empresa,
+      codigo_conta_bancaria: dados_transferencia.codigo_conta_bancaria,
+    });
+
+    const movimentacao = {
+      codigo_loja,
+      codigo_empresa,
+      caixaId: caixa._id,
+      codigo_movimento,
+      caixa: caixa.caixa,
+      codigo_caixa: caixa.codigo_caixa,
+      tipo_movimentacao: "entrada",
+      valor,
+      meio_pagamento,
+      documento_origem: codigo_receber,
+      origem: "receber",
+      categoria_contabil: "1.1.1",
+    };
+
+    if (meio_pagamento.toLowerCase() === "dinheiro") {
+      caixa.saldo_final += valor;
+      await caixa.save({ session });
+    }
+    if (meio_pagamento.toLowerCase() === "pix") {
+      movimentacao.codigo_conta_bancaria =
+        contaBancariaPadrao.codigo_conta_bancaria;
+      const teste01 = (contaBancariaPadrao.saldo += valor);
+      await contaBancariaPadrao.save({ session });
+    }
+    if (meio_pagamento.toLowerCase() === "transferencia") {
+      movimentacao.codigo_conta_bancaria =
+        dados_transferencia.codigo_conta_bancaria;
+
+      const teste = (ContaBancaria.saldo += parseFloat(valor));
+      await ContaBancaria.save({ session });
+    }
+
+    const novaMovimentacao = new MovimentacaoCaixa(movimentacao);
+    await novaMovimentacao.save({ session });
 
     await session.commitTransaction();
 

@@ -5,6 +5,7 @@ const autoIncrementreceber = require("../middlewares/autoIncrementreceber");
 const auth = require("../middlewares/auth");
 const checkPermission = require("../middlewares/checkPermission");
 const ClientesController = require("../controllers/clientesController");
+const autoIncrementMovimento = require("../middlewares/autoIncrementMovimento");
 
 router.use(auth);
 
@@ -29,6 +30,7 @@ router.post(
 router.put(
   "/liquidar",
   checkPermission("receber:liquidar"),
+  autoIncrementMovimento,
   receberController.liquidarReceber
 );
 

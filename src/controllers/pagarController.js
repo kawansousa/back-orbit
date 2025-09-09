@@ -1,5 +1,8 @@
 const mongoose = require("mongoose");
 const Pagar = require("../models/pagar.model");
+const ContasBancarias = require("../models/contas_bancarias.model")
+const Caixa = require("../models/caixa.model")
+const MovimentacaoCaixa = require("../models/movimentacoes_caixa.model")
 
 exports.criarPagar = async (req, res) => {
   const session = await mongoose.startSession();
@@ -365,7 +368,7 @@ exports.listarPagamentos = async (req, res) => {
   }
 };
 
-exports.liquidarPagamento = async (req, res) => {
+exports.liquidarPagar = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -375,127 +378,135 @@ exports.liquidarPagamento = async (req, res) => {
       codigo_empresa,
       codigo_pagar,
       valor,
-      forma_pagamento,
+      meio_pagamento,
       observacao,
+      codigo_movimento,
+      dados_transferencia,
     } = req.body;
 
-    // Validações básicas
-    if (!codigo_loja || !codigo_empresa) {
+    if (!codigo_loja || !codigo_empresa || !codigo_pagar || !meio_pagamento) {
       await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ error: "Código da empresa e loja são obrigatórios" });
+      return res.status(400).json({ error: "Campos obrigatórios faltando." });
     }
 
-    if (!codigo_pagar) {
+    const valorNumerico = parseFloat(valor);
+    if (isNaN(valorNumerico) || valorNumerico <= 0) {
       await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ error: "Código do pagamento é obrigatório" });
+      return res.status(400).json({ error: "Valor inválido ou menor/igual a zero." });
     }
 
-    if (!valor || valor <= 0) {
+    if (meio_pagamento === "transferencia" && (!dados_transferencia || !dados_transferencia.codigo_conta_bancaria_origem)) {
       await session.abortTransaction();
-      return res.status(400).json({ error: "Valor deve ser maior que zero" });
+      return res.status(400).json({ error: "Para transferência, 'dados_transferencia' com 'codigo_conta_bancaria_origem' é obrigatório." });
     }
 
-    if (!forma_pagamento) {
-      await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ error: "Forma de pagamento é obrigatória" });
-    }
-
-    // Buscar o pagamento
-    const pagamento = await Pagar.findOne({
+    const contaAPagar = await Pagar.findOne({
       codigo_loja,
       codigo_empresa,
       codigo_pagar,
     }).session(session);
 
-    if (!pagamento) {
+    if (!contaAPagar) {
       await session.abortTransaction();
-      return res.status(404).json({ error: "Pagamento não encontrado" });
+      return res.status(404).json({ error: "Conta a pagar não encontrada" });
     }
-
-    // Verificar se o pagamento pode ser liquidado
-    if (pagamento.status === "liquidado") {
+    if (["liquidado", "cancelado"].includes(contaAPagar.status)) {
       await session.abortTransaction();
-      return res.status(400).json({ error: "Pagamento já foi liquidado" });
+      return res.status(400).json({ error: `Conta a pagar já está com status: ${contaAPagar.status}` });
     }
-
-    if (pagamento.status === "cancelado") {
+    if (valorNumerico > contaAPagar.valor_restante) {
       await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ error: "Não é possível liquidar um pagamento cancelado" });
+      return res.status(400).json({ error: `Valor (${valorNumerico}) não pode ser maior que o valor restante (${contaAPagar.valor_restante})` });
     }
 
-    // Verificar se o valor não excede o valor restante
-    if (valor > pagamento.valor_restante) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        error: `Valor (${valor}) não pode ser maior que o valor restante (${pagamento.valor_restante})`,
-      });
-    }
+    const novoValorRestante = contaAPagar.valor_restante - valorNumerico;
+    const novoStatus = novoValorRestante === 0 ? "liquidado" : "parcial";
 
-    // Calcular novo valor restante
-    const novoValorRestante = pagamento.valor_restante - valor;
+    const contaPagaAtualizada = await Pagar.findOneAndUpdate(
+      { codigo_loja, codigo_empresa, codigo_pagar },
+      {
+        $set: { valor_restante: novoValorRestante, status: novoStatus },
+        $push: { liquidacoes: { valor: valorNumerico, meio_pagamento, observacao } },
+      },
+      { new: true, session }
+    );
 
-    // Determinar novo status baseado no valor restante
-    let novoStatus;
-    if (novoValorRestante === 0) {
-      novoStatus = "liquidado";
-    } else if (novoValorRestante < pagamento.valor_total) {
-      novoStatus = "parcial";
-    } else {
-      novoStatus = "aberto";
-    }
-
-    // Criar objeto da liquidação (o campo data terá default Date.now pelo schema)
-    const novaLiquidacao = {
-      valor,
-      forma_pagamento,
-      observacao,
+    const movimentacao = {
+      codigo_loja,
+      codigo_empresa,
+      codigo_movimento,
+      tipo_movimentacao: "saida",
+      valor: valorNumerico,
+      meio_pagamento,
+      documento_origem: codigo_pagar,
+      origem: "pagar",
+      categoria_contabil: "2.1.1",
     };
 
-    // Atualizar o pagamento
-    const pagamentoAtualizado = await Pagar.findOneAndUpdate(
-      {
+    if (meio_pagamento === "dinheiro") {
+      const caixa = await Caixa.findOne({ codigo_loja, codigo_empresa, status: "aberto" }).session(session);
+      if (!caixa) {
+        await session.abortTransaction();
+        return res.status(400).json({ error: "Nenhum caixa aberto encontrado para efetuar o pagamento." });
+      }
+      if (caixa.saldo_final < valorNumerico) {
+        await session.abortTransaction();
+        return res.status(400).json({ error: `Saldo insuficiente no caixa. Saldo atual: ${caixa.saldo_final}` });
+      }
+      caixa.saldo_final -= valorNumerico;
+      await caixa.save({ session });
+      movimentacao.caixaId = caixa._id;
+      movimentacao.codigo_caixa = caixa.codigo_caixa;
+    } else if (meio_pagamento === "pix") {
+      const contaBancariaPadrao = await ContasBancarias.findOne({ codigo_loja, codigo_empresa, conta_padrao: true }).session(session);
+      if (!contaBancariaPadrao) {
+        await session.abortTransaction();
+        return res.status(404).json({ error: "Nenhuma conta bancária padrão encontrada para efetuar o PIX." });
+      }
+      if (contaBancariaPadrao.saldo < valorNumerico) {
+        await session.abortTransaction();
+        return res.status(400).json({ error: `Saldo insuficiente na conta padrão. Saldo atual: ${contaBancariaPadrao.saldo}` });
+      }
+      contaBancariaPadrao.saldo -= valorNumerico;
+      await contaBancariaPadrao.save({ session });
+      movimentacao.codigo_conta_bancaria = contaBancariaPadrao.codigo_conta_bancaria;
+    } else if (meio_pagamento === "transferencia") {
+      const contaOrigem = await ContasBancarias.findOne({
         codigo_loja,
         codigo_empresa,
-        codigo_pagar,
-      },
-      {
-        $set: {
-          valor_restante: novoValorRestante,
-          status: novoStatus,
-        },
-        $push: {
-          liquidacoes: novaLiquidacao,
-        },
-      },
-      {
-        new: true,
-        session,
+        codigo_conta_bancaria: dados_transferencia.codigo_conta_bancaria_origem,
+      }).session(session);
+      if (!contaOrigem) {
+        await session.abortTransaction();
+        return res.status(404).json({ error: "A conta bancária de origem da transferência não foi encontrada." });
       }
-    ).populate("fornecedor");
+      if (contaOrigem.saldo < valorNumerico) {
+        await session.abortTransaction();
+        return res.status(400).json({ error: `Saldo insuficiente na conta de origem. Saldo atual: ${contaOrigem.saldo}` });
+      }
+      contaOrigem.saldo -= valorNumerico;
+      await contaOrigem.save({ session });
+      movimentacao.codigo_conta_bancaria = contaOrigem.codigo_conta_bancaria;
+    }
+
+    const novaMovimentacao = new MovimentacaoCaixa(movimentacao);
+    await novaMovimentacao.save({ session });
 
     await session.commitTransaction();
 
     res.status(200).json({
-      message: "Pagamento liquidado com sucesso",
-      pagamento: pagamentoAtualizado,
+      message: "Conta a pagar liquidada com sucesso",
+      conta_paga: contaPagaAtualizada,
       liquidacao: {
-        valor_liquidado: valor,
+        valor_liquidado: valorNumerico,
         valor_restante: novoValorRestante,
-        status_anterior: pagamento.status,
+        status_anterior: contaAPagar.status,
         status_atual: novoStatus,
       },
     });
   } catch (error) {
     await session.abortTransaction();
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Ocorreu um erro no servidor.", details: error.message });
   } finally {
     session.endSession();
   }

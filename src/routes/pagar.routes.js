@@ -21,7 +21,7 @@ router.post(
 router.put(
   "/liquidar",
   checkPermission("pagar:liquidar"),
-  PagarController.liquidarPagamento
+  PagarController.liquidarPagar
 );
 
 module.exports = router;

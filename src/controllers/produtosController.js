@@ -185,13 +185,15 @@ exports.createProduto = async (req, res) => {
     if (produtoExistente) {
       if (produtoExistente.descricao === descricao) {
         return res.status(409).json({
-          error: "Já existe um item cadastrado com essa descrição.",
+          erros: [{ msg: "Já existe um item cadastrado com essa descrição." }],
         });
       }
 
       if (produtoExistente.codigo_barras === codigoBarrasString) {
         return res.status(409).json({
-          error: "Já existe um item cadastrado com esse código de barras.",
+          erros: [
+            { msg: "Já existe um item cadastrado com esse código de barras." },
+          ],
         });
       }
     }

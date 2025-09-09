@@ -434,47 +434,30 @@ exports.liquidarReceber = async (req, res) => {
       dados_transferencia,
     } = req.body;
 
-    if (!codigo_loja || !codigo_empresa) {
+    if (!codigo_loja || !codigo_empresa || !codigo_receber || !meio_pagamento) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: "Campos obrigatórios faltando." });
+    }
+
+    const valorNumerico = parseFloat(valor);
+    if (isNaN(valorNumerico) || valorNumerico <= 0) {
       await session.abortTransaction();
       return res
         .status(400)
-        .json({ error: "Código da empresa e loja são obrigatórios" });
+        .json({ error: "Valor inválido ou menor/igual a zero." });
     }
 
-    if (!codigo_receber) {
+    if (
+      meio_pagamento === "transferencia" &&
+      (!dados_transferencia || !dados_transferencia.codigo_conta_bancaria)
+    ) {
       await session.abortTransaction();
       return res
         .status(400)
-        .json({ error: "Código do recebimento é obrigatório" });
-    }
-
-    if (!valor || valor <= 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: "Valor deve ser maior que zero" });
-    }
-
-    if (!meio_pagamento) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: "Meio de pagamento é obrigatório" });
-    }
-
-    const meiosPagamentoValidos = [
-      "dinheiro",
-      "pix",
-      "cartao_credito",
-      "cartao_debito",
-      "transferencia",
-      "cheque",
-      "aprazo",
-    ];
-
-    if (!meiosPagamentoValidos.includes(meio_pagamento)) {
-      await session.abortTransaction();
-      return res.status(400).json({
-        error: `Meio de pagamento inválido. Valores aceitos: ${meiosPagamentoValidos.join(
-          ", "
-        )}`,
-      });
+        .json({
+          error:
+            "Para transferência, 'dados_transferencia' com 'codigo_conta_bancaria' é obrigatório.",
+        });
     }
 
     const recebimento = await Receber.findOne({
@@ -487,62 +470,35 @@ exports.liquidarReceber = async (req, res) => {
       await session.abortTransaction();
       return res.status(404).json({ error: "Recebimento não encontrado" });
     }
-
-    if (recebimento.status === "liquidado") {
-      await session.abortTransaction();
-      return res.status(400).json({ error: "Recebimento já foi liquidado" });
-    }
-
-    if (recebimento.status === "cancelado") {
+    if (["liquidado", "cancelado"].includes(recebimento.status)) {
       await session.abortTransaction();
       return res
         .status(400)
-        .json({ error: "Não é possível liquidar um recebimento cancelado" });
+        .json({
+          error: `Recebimento já está com status: ${recebimento.status}`,
+        });
     }
-
-    if (valor > recebimento.valor_restante) {
+    if (valorNumerico > recebimento.valor_restante) {
       await session.abortTransaction();
-      return res.status(400).json({
-        error: `Valor (${valor}) não pode ser maior que o valor restante (${recebimento.valor_restante})`,
-      });
+      return res
+        .status(400)
+        .json({
+          error: `Valor (${valorNumerico}) não pode ser maior que o valor restante (${recebimento.valor_restante})`,
+        });
     }
 
-    const novoValorRestante = recebimento.valor_restante - valor;
-
-    let novoStatus;
-    if (novoValorRestante === 0) {
-      novoStatus = "liquidado";
-    } else if (novoValorRestante < recebimento.valor_total) {
-      novoStatus = "parcial";
-    } else {
-      novoStatus = "aberto";
-    }
-
-    const novaLiquidacao = {
-      valor,
-      meio_pagamento,
-      observacao,
-    };
+    const novoValorRestante = recebimento.valor_restante - valorNumerico;
+    const novoStatus = novoValorRestante === 0 ? "liquidado" : "parcial";
 
     const recebimentoAtualizado = await Receber.findOneAndUpdate(
+      { codigo_loja, codigo_empresa, codigo_receber },
       {
-        codigo_loja,
-        codigo_empresa,
-        codigo_receber,
-      },
-      {
-        $set: {
-          valor_restante: novoValorRestante,
-          status: novoStatus,
-        },
+        $set: { valor_restante: novoValorRestante, status: novoStatus },
         $push: {
-          liquidacoes: novaLiquidacao,
+          liquidacoes: { valor: valorNumerico, meio_pagamento, observacao },
         },
       },
-      {
-        new: true,
-        session,
-      }
+      { new: true, session }
     ).populate("cliente");
 
     const caixa = await Caixa.findOne({
@@ -553,22 +509,8 @@ exports.liquidarReceber = async (req, res) => {
 
     if (!caixa) {
       await session.abortTransaction();
-      return res
-        .status(400)
-        .json({ error: "Nenhum caixa aberto encontrado para esta loja." });
+      return res.status(400).json({ error: "Nenhum caixa aberto encontrado." });
     }
-
-    const contaBancariaPadrao = await ContasBancarias.findOne({
-      codigo_loja,
-      codigo_empresa,
-      conta_padrao: true,
-    }).session(session);
-
-    const ContaBancaria = await ContasBancarias.findOne({
-      codigo_loja,
-      codigo_empresa,
-      codigo_conta_bancaria: dados_transferencia.codigo_conta_bancaria,
-    });
 
     const movimentacao = {
       codigo_loja,
@@ -578,29 +520,54 @@ exports.liquidarReceber = async (req, res) => {
       caixa: caixa.caixa,
       codigo_caixa: caixa.codigo_caixa,
       tipo_movimentacao: "entrada",
-      valor,
+      valor: valorNumerico,
       meio_pagamento,
       documento_origem: codigo_receber,
       origem: "receber",
       categoria_contabil: "1.1.1",
     };
 
-    if (meio_pagamento.toLowerCase() === "dinheiro") {
-      caixa.saldo_final += valor;
+    if (meio_pagamento === "dinheiro") {
+      caixa.saldo_final += valorNumerico;
       await caixa.save({ session });
-    }
-    if (meio_pagamento.toLowerCase() === "pix") {
+    } else if (meio_pagamento === "pix") {
+      const contaBancariaPadrao = await ContasBancarias.findOne({
+        codigo_loja,
+        codigo_empresa,
+        conta_padrao: true,
+      }).session(session);
+      if (!contaBancariaPadrao) {
+        await session.abortTransaction();
+        return res
+          .status(404)
+          .json({
+            error:
+              "Nenhuma conta bancária padrão foi encontrada para receber o PIX.",
+          });
+      }
       movimentacao.codigo_conta_bancaria =
         contaBancariaPadrao.codigo_conta_bancaria;
-      const teste01 = (contaBancariaPadrao.saldo += valor);
+      contaBancariaPadrao.saldo += valorNumerico;
       await contaBancariaPadrao.save({ session });
-    }
-    if (meio_pagamento.toLowerCase() === "transferencia") {
+    } else if (meio_pagamento === "transferencia") {
+      const contaTransferencia = await ContasBancarias.findOne({
+        codigo_loja,
+        codigo_empresa,
+        codigo_conta_bancaria: dados_transferencia.codigo_conta_bancaria,
+      }).session(session);
+      if (!contaTransferencia) {
+        await session.abortTransaction();
+        return res
+          .status(404)
+          .json({
+            error:
+              "A conta bancária de destino da transferência não foi encontrada.",
+          });
+      }
       movimentacao.codigo_conta_bancaria =
-        dados_transferencia.codigo_conta_bancaria;
-
-      const teste = (ContaBancaria.saldo += parseFloat(valor));
-      await ContaBancaria.save({ session });
+        contaTransferencia.codigo_conta_bancaria;
+      contaTransferencia.saldo += valorNumerico;
+      await contaTransferencia.save({ session });
     }
 
     const novaMovimentacao = new MovimentacaoCaixa(movimentacao);
@@ -612,7 +579,7 @@ exports.liquidarReceber = async (req, res) => {
       message: "Recebimento liquidado com sucesso",
       recebimento: recebimentoAtualizado,
       liquidacao: {
-        valor_liquidado: valor,
+        valor_liquidado: valorNumerico,
         valor_restante: novoValorRestante,
         status_anterior: recebimento.status,
         status_atual: novoStatus,
@@ -620,7 +587,9 @@ exports.liquidarReceber = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    res.status(500).json({ error: error.message });
+    res
+      .status(500)
+      .json({ error: "Ocorreu um erro no servidor.", details: error.message });
   } finally {
     session.endSession();
   }

@@ -98,6 +98,22 @@ const servicosOsSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
+const dadosTransferenciaSchema = new mongoose.Schema({
+  codigo_conta_bancaria: {
+    type: Number,
+  },
+  conta_bancaria: {
+    type: String,
+  },
+  agencia : {
+    type: Number, 
+  },
+  conta: {
+    type: Number,
+  }
+})
+
 const pagamentoOsSchema = new mongoose.Schema(
   {
     meio_pagamento: {
@@ -115,6 +131,7 @@ const pagamentoOsSchema = new mongoose.Schema(
     valor_pagamento: {
       type: Number,
     },
+    dados_transferencia: dadosTransferenciaSchema,
   },
   { _id: false }
 );

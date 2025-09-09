@@ -127,6 +127,9 @@ const produtoSchema = new mongoose.Schema(
     grupo: {
       type: String,
     },
+    grupo_id: {
+      type: mongoose.Schema.Types.ObjectId,
+    },
     subgrupo: {
       type: String,
     },

@@ -1,190 +1,270 @@
-const Cliente = require('../models/clientes.model');
-const Cidades = require('../models/cidades.model');
+const Cliente = require("../models/clientes.model");
+const Cidades = require("../models/cidades.model");
 
 exports.getClientes = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      page = 1,
+      limit = 100,
+      searchTerm = "",
+      searchType = "todos",
+    } = req.query;
 
-    // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    // Convert pagination parameters
-    const pageNumber = parseInt(page, 10) || 1;
-    const limitNumber = parseInt(limit, 10) || 10;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
 
-    if (pageNumber < 1 || limitNumber < 1) {
+    if (
+      pageNumber < 1 ||
+      limitNumber < 1 ||
+      isNaN(pageNumber) ||
+      isNaN(limitNumber)
+    ) {
       return res.status(400).json({
-        error: 'Os valores de page e limit devem ser maiores que 0.'
+        error:
+          "Os valores de page e limit devem ser números positivos válidos.",
       });
     }
 
-    // Calculate skip
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Build filters
     let filtros = {
       codigo_loja,
       codigo_empresa,
     };
 
-    if (searchTerm) {
-      if (searchType === 'todos') {
-        filtros.$or = [
-          { nome: { $regex: searchTerm, $options: 'i' } },
-          { cpf: { $regex: searchTerm, $options: 'i' } },
-          { email: { $regex: searchTerm, $options: 'i' } }
-        ];
+    if (searchTerm && searchTerm.trim() !== "") {
+      const termoBusca = searchTerm.trim();
+
+      if (searchType === "todos") {
+        const conditions = [];
+
+        conditions.push({ nome: { $regex: termoBusca, $options: "i" } });
+        conditions.push({ email: { $regex: termoBusca, $options: "i" } });
+
+        const cpfLimpo = termoBusca.replace(/[^\d]/g, "");
+        if (cpfLimpo.length > 0) {
+          conditions.push({ cpf: { $regex: cpfLimpo, $options: "i" } });
+          if (cpfLimpo.length === 11) {
+            const cpfFormatado = cpfLimpo.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+            conditions.push({ cpf: { $regex: cpfFormatado.replace(/[.\/-]/g, "[.\\/-]?"), $options: "i" } });
+          }
+        }
+
+        const cnpjLimpo = termoBusca.replace(/[^\d]/g, "");
+        if (cnpjLimpo.length > 0) {
+          if (cnpjLimpo.length >= 11) {
+            conditions.push({ cnpj: parseInt(cnpjLimpo) });
+          }
+          
+          conditions.push({ cnpj: { $regex: cnpjLimpo, $options: "i" } });
+          
+          conditions.push({
+            $expr: {
+              $regexMatch: {
+                input: { $toString: "$cnpj" },
+                regex: cnpjLimpo,
+                options: "i"
+              }
+            }
+          });
+        }
+
+        filtros.$or = conditions;
       } else {
-        // Specific field search
         switch (searchType) {
-          case 'nome':
-          case 'cpf':
-          case 'email':
-            filtros[searchType] = { $regex: searchTerm, $options: 'i' };
+          case "nome":
+          case "email":
+            filtros[searchType] = { $regex: termoBusca, $options: "i" };
             break;
+          case "cpf":
+            const cpfLimpo = termoBusca.replace(/[^\d]/g, "");
+            if (cpfLimpo.length > 0) {
+              const conditions = [];
+              
+              conditions.push({ cpf: { $regex: cpfLimpo, $options: "i" } });
+              
+              if (cpfLimpo.length === 11) {
+                const cpfFormatado = cpfLimpo.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+                conditions.push({ cpf: { $regex: cpfFormatado.replace(/[.\/-]/g, "[.\\/-]?"), $options: "i" } });
+              }
+              
+              conditions.push({ cpf: { $regex: cpfLimpo.split('').join('[.\\/-]*'), $options: "i" } });
+              
+              filtros.$or = conditions;
+            } else {
+              filtros.cpf = null;
+            }
+            break;
+          case "cnpj":
+            const cnpjLimpo = termoBusca.replace(/[^\d]/g, "");
+            
+            if (cnpjLimpo.length > 0) {
+              const conditions = [];
+              
+              if (cnpjLimpo.length >= 11) {
+                conditions.push({ cnpj: parseInt(cnpjLimpo) });
+              }
+              
+              conditions.push({ cnpj: { $regex: cnpjLimpo, $options: "i" } });
+              
+              conditions.push({
+                $expr: {
+                  $regexMatch: {
+                    input: { $toString: "$cnpj" },
+                    regex: cnpjLimpo,
+                    options: "i"
+                  }
+                }
+              });
+              
+              filtros.$or = conditions;
+            } else {
+              filtros.cnpj = null;
+            }
+            break;
+          default:
+            return res.status(400).json({
+              error:
+                "Tipo de busca inválido. Use: todos, nome, cpf, cnpj ou email",
+            });
         }
       }
     }
 
-    // Aggregation pipeline
     const pipeline = [
       { $match: filtros },
+      { $sort: { updatedAt: -1 } },
       { $skip: skip },
       { $limit: limitNumber },
 
-      // Handling cidade for cliente
       {
         $addFields: {
-          'endereco.cidade': {
+          "endereco.cidade": {
             $cond: {
               if: {
                 $and: [
-                  { $ne: ['$endereco.cidade', ''] },
-                  { $ne: ['$endereco.cidade', null] }
-                ]
+                  { $ne: ["$endereco.cidade", ""] },
+                  { $ne: ["$endereco.cidade", null] },
+                ],
               },
-              then: { $toInt: '$endereco.cidade' },
-              else: null
-            }
-          }
-        }
+              then: { $toInt: "$endereco.cidade" },
+              else: null,
+            },
+          },
+        },
       },
 
-      // Handling cidade for conjugue
       {
         $addFields: {
-          'conjugue.endereco.cidade': {
+          "conjugue.endereco.cidade": {
             $cond: {
               if: {
                 $and: [
-                  { $ne: ['$conjugue.endereco.cidade', ''] },
-                  { $ne: ['$conjugue.endereco.cidade', null] }
-                ]
+                  { $ne: ["$conjugue.endereco.cidade", ""] },
+                  { $ne: ["$conjugue.endereco.cidade", null] },
+                ],
               },
-              then: { $toInt: '$conjugue.endereco.cidade' },
-              else: null
-            }
-          }
-        }
+              then: { $toInt: "$conjugue.endereco.cidade" },
+              else: null,
+            },
+          },
+        },
       },
 
-      // Lookup for cliente's city
       {
         $lookup: {
-          from: 'cidades',
-          let: { cidadeId: '$endereco.cidade' },
+          from: "cidades",
+          let: { cidadeId: "$endereco.cidade" },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ['$codigo', '$$cidadeId'] },
-                    { $ne: ['$$cidadeId', null] }
-                  ]
-                }
-              }
-            }
+                    { $eq: ["$codigo", "$$cidadeId"] },
+                    { $ne: ["$$cidadeId", null] },
+                  ],
+                },
+              },
+            },
           ],
-          as: 'cidadeInfo'
-        }
+          as: "cidadeInfo",
+        },
       },
 
-      // Update cidade for cliente
       {
         $addFields: {
-          'endereco.cidade': {
+          "endereco.cidade": {
             $cond: {
-              if: { $gt: [{ $size: '$cidadeInfo' }, 0] },
-              then: { $arrayElemAt: ['$cidadeInfo.nome', 0] },
-              else: ''
-            }
-          }
-        }
+              if: { $gt: [{ $size: "$cidadeInfo" }, 0] },
+              then: { $arrayElemAt: ["$cidadeInfo.nome", 0] },
+              else: "",
+            },
+          },
+        },
       },
 
-      // Lookup for conjugue's city
       {
         $lookup: {
-          from: 'cidades',
-          let: { cidadeId: '$conjugue.endereco.cidade' },
+          from: "cidades",
+          let: { cidadeId: "$conjugue.endereco.cidade" },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ['$codigo', '$$cidadeId'] },
-                    { $ne: ['$$cidadeId', null] }
-                  ]
-                }
-              }
-            }
+                    { $eq: ["$codigo", "$$cidadeId"] },
+                    { $ne: ["$$cidadeId", null] },
+                  ],
+                },
+              },
+            },
           ],
-          as: 'cidadeInfoConjugue'
-        }
+          as: "cidadeInfoConjugue",
+        },
       },
 
-      // Update cidade for conjugue
       {
         $addFields: {
-          'conjugue.endereco.cidade': {
+          "conjugue.endereco.cidade": {
             $cond: {
-              if: { $gt: [{ $size: '$cidadeInfoConjugue' }, 0] },
-              then: { $arrayElemAt: ['$cidadeInfoConjugue.nome', 0] },
-              else: ''
-            }
-          }
-        }
+              if: { $gt: [{ $size: "$cidadeInfoConjugue" }, 0] },
+              then: { $arrayElemAt: ["$cidadeInfoConjugue.nome", 0] },
+              else: "",
+            },
+          },
+        },
       },
 
-      // Remove temporary lookup arrays
-      { $unset: ['cidadeInfo', 'cidadeInfoConjugue'] }
+      { $unset: ["cidadeInfo", "cidadeInfoConjugue"] },
     ];
 
     const clientes = await Cliente.aggregate(pipeline);
-
-    // Total clients for pagination
     const totalClientes = await Cliente.countDocuments(filtros);
+    const totalPages = Math.ceil(totalClientes / limitNumber);
 
-    if (clientes.length === 0) {
-      return res.status(404).json({
-        message: 'Nenhum cliente encontrado para os filtros fornecidos.'
-      });
-    }
-
-    // Return clients with pagination info
     res.status(200).json({
-      total: totalClientes,
-      page: pageNumber,
-      limit: limitNumber,
-      totalPages: Math.ceil(totalClientes / limitNumber),
       data: clientes,
+      totalPages,
+      currentPage: pageNumber,
+      totalCount: totalClientes,
+      hasNextPage: pageNumber < totalPages,
+      hasPrevPage: pageNumber > 1,
+      message:
+        clientes.length === 0
+          ? "Nenhum cliente encontrado para os filtros fornecidos."
+          : undefined,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Erro ao buscar clientes:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
   }
 };
 
@@ -210,7 +290,7 @@ exports.createCliente = async (req, res) => {
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.',
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
@@ -234,18 +314,10 @@ exports.createCliente = async (req, res) => {
           ],
         },
         {
-          $and: [
-            { ie: { $ne: "nao informado" } },
-            { ie: { $ne: "" } },
-            { ie },
-          ],
+          $and: [{ ie: { $ne: "nao informado" } }, { ie: { $ne: "" } }, { ie }],
         },
         {
-          $and: [
-            { rg: { $ne: "nao informado" } },
-            { rg: { $ne: "" } },
-            { rg },
-          ],
+          $and: [{ rg: { $ne: "nao informado" } }, { rg: { $ne: "" } }, { rg }],
         },
       ],
     });
@@ -263,9 +335,8 @@ exports.createCliente = async (req, res) => {
     }
     // Validar formato de email
     if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      return res.status(400).json({ error: 'Formato de email inválido.' });
+      return res.status(400).json({ error: "Formato de email inválido." });
     }
-
 
     const novoCliente = new Cliente({
       codigo_loja,
@@ -283,13 +354,12 @@ exports.createCliente = async (req, res) => {
       tipo,
       endereco,
       conjugue,
-
     });
 
     await novoCliente.save();
 
     res.status(201).json({
-      message: 'Cliente criado com sucesso',
+      message: "Cliente criado com sucesso",
       cliente: novoCliente,
     });
   } catch (error) {
@@ -304,7 +374,7 @@ exports.getClientesById = async (req, res) => {
     // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
@@ -318,16 +388,17 @@ exports.getClientesById = async (req, res) => {
     // Check if client was found
     if (!cliente) {
       return res.status(404).json({
-        error: 'Cliente não encontrado para essa loja e empresa.'
+        error: "Cliente não encontrado para essa loja e empresa.",
       });
     }
 
     // Find the city based on the city code in the client's address
-    const cidade = await Cidades.findOne({ codigo: parseInt(cliente.endereco.cidade, 10) });
-
+    const cidade = await Cidades.findOne({
+      codigo: parseInt(cliente.endereco.cidade, 10),
+    });
 
     if (cidade) {
-      cliente.endereco.cidade = cidade.nome
+      cliente.endereco.cidade = cidade.nome;
     }
 
     // Return found client with city name
@@ -344,13 +415,13 @@ exports.updateCliente = async (req, res) => {
     // Validate mandatory parameters
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
-        error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.'
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
     // Validate name if present
-    if (nome !== undefined && nome.trim() === '') {
-      return res.status(400).json({ error: 'Preencha o nome' });
+    if (nome !== undefined && nome.trim() === "") {
+      return res.status(400).json({ error: "Preencha o nome" });
     }
 
     // Update client, validating store and company
@@ -363,14 +434,14 @@ exports.updateCliente = async (req, res) => {
     // Check if client was found and updated
     if (!updatedCliente) {
       return res.status(404).json({
-        error: 'Cliente não encontrado para essa loja e empresa.'
+        error: "Cliente não encontrado para essa loja e empresa.",
       });
     }
 
     // Return updated client
     res.status(200).json({
-      message: 'Cliente atualizado',
-      cliente: updatedCliente
+      message: "Cliente atualizado",
+      cliente: updatedCliente,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -381,9 +452,9 @@ exports.deleteCliente = async (req, res) => {
   try {
     const cliente = await Cliente.findByIdAndDelete(req.params.id);
     if (!cliente) {
-      return res.status(404).json({ error: 'Cliente não encontrado' });
+      return res.status(404).json({ error: "Cliente não encontrado" });
     }
-    res.status(200).json({ message: 'Cliente removido com sucesso' });
+    res.status(200).json({ message: "Cliente removido com sucesso" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

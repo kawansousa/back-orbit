@@ -94,87 +94,101 @@ exports.createFornecedor = async (req, res) => {
   }
 };
 
-// Obter todos os fornecedor
 exports.getFornecedores = async (req, res) => {
   try {
     const {
       codigo_loja,
       codigo_empresa,
-      page,
-      limit,
-      searchTerm,
-      searchType // New parameter for specific field search
+      page = 1,
+      limit = 100,
+      searchTerm = "",
+      searchType = "todos"
     } = req.query;
 
-    // Verifica se os parâmetros obrigatórios foram fornecidos
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({ error: 'Os campos codigo_loja e codigo_empresa são obrigatórios.' });
     }
 
-    // Converte os parâmetros de paginação para números
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
 
-    if (pageNumber < 1 || limitNumber < 1) {
-      return res.status(400).json({ error: 'Os valores de page e limit devem ser maiores que 0.' });
+    if (pageNumber < 1 || limitNumber < 1 || isNaN(pageNumber) || isNaN(limitNumber)) {
+      return res.status(400).json({ error: 'Os valores de page e limit devem ser números positivos válidos.' });
     }
 
-    // Calcula o deslocamento (skip)
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Constrói o objeto de filtros baseado no tipo de busca
     let filtros = {
       codigo_loja,
       codigo_empresa,
     };
 
-    if (searchTerm) {
+    if (searchTerm && searchTerm.trim() !== "") {
+      const termoBusca = searchTerm.trim();
+
       if (searchType === 'todos') {
-        filtros.$or = [
-          { nome_fantasia: { $regex: searchTerm, $options: 'i' } },
-          { razao_social: { $regex: searchTerm, $options: 'i' } },
-          { email: { $regex: searchTerm, $options: 'i' } },
-          { cnpj: isNaN(searchTerm) ? null : parseInt(searchTerm, 10) },
-        ].filter(condition => condition[Object.keys(condition)[0]] !== null);
+        const conditions = [];
+
+        conditions.push({ nome_fantasia: { $regex: termoBusca, $options: 'i' } });
+        
+        conditions.push({ razao_social: { $regex: termoBusca, $options: 'i' } });
+        
+        conditions.push({ email: { $regex: termoBusca, $options: 'i' } });
+        
+        const cnpjLimpo = termoBusca.replace(/[^\d]/g, '');
+        if (cnpjLimpo.length > 0) {
+          const regexCnpj = cnpjLimpo.replace(/(\d)/g, '$1[./-]?');
+          conditions.push({ cnpj: { $regex: regexCnpj, $options: 'i' } });
+        }
+
+        filtros.$or = conditions;
+        
       } else {
-        // Busca específica por campo
         switch (searchType) {
           case 'cnpj':
-            if (!isNaN(searchTerm)) {
-              filtros[searchType] = parseInt(searchTerm, 10);
+            const cnpjLimpo = termoBusca.replace(/[^\d]/g, '');
+            if (cnpjLimpo.length > 0) {
+              filtros.cnpj = { $regex: cnpjLimpo.replace(/(\d)/g, '$1[./-]?'), $options: 'i' };
+            } else {
+              filtros.cnpj = null;
             }
             break;
           case 'nome_fantasia':
           case 'email':
           case 'razao_social':
-            filtros[searchType] = { $regex: searchTerm, $options: 'i' };
+            filtros[searchType] = { $regex: termoBusca, $options: 'i' };
             break;
+          default:
+            return res.status(400).json({
+              error: "Tipo de busca inválido. Use: todos, cnpj, nome_fantasia, email ou razao_social"
+            });
         }
       }
     }
 
-    // Consulta com paginação e filtros
     const fornecedor = await Fornecedor.find(filtros)
+      .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(limitNumber);
 
-    // Total de produtos para a paginação
     const totalFornecedor = await Fornecedor.countDocuments(filtros);
+    const totalPages = Math.ceil(totalFornecedor / limitNumber);
 
-    if (fornecedor.length === 0) {
-      return res.status(404).json({ message: 'Nenhum fornecedor encontrado para os filtros fornecidos.' });
-    }
-
-    // Retorna os produtos junto com informações de paginação
     res.status(200).json({
-      total: totalFornecedor,
-      page: pageNumber,
-      limit: limitNumber,
-      totalPages: Math.ceil(totalFornecedor / limitNumber),
       data: fornecedor,
+      totalPages,
+      currentPage: pageNumber,
+      totalCount: totalFornecedor,
+      hasNextPage: pageNumber < totalPages,
+      hasPrevPage: pageNumber > 1,
+      message: fornecedor.length === 0 
+        ? 'Nenhum fornecedor encontrado para os filtros fornecidos.' 
+        : undefined,
     });
+    
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Erro ao buscar fornecedores:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
   }
 };
 

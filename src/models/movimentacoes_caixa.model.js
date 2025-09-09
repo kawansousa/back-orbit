@@ -13,17 +13,18 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
   codigo_movimento: {
     type: Number,
   },
+  codigo_conta_bancaria: {
+    type: Number,
+  },
   caixaId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Caixa",
   },
   caixa: {
     type: Number,
-    required: true,
   },
   codigo_caixa: {
     type: Number,
-    required: true,
   },
   status: {
     type: String,
@@ -48,7 +49,9 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
       "estorno_recebimento",
       "venda",
       "os",
+      "receber",
       "cancelamento_venda",
+      "cancelamento_os",
       "producao",
       "transferencia",
       "ajuste_estoque",
@@ -75,6 +78,7 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
       "cartao_debito",
       "cheque",
       "aprazo",
+      "transferencia",
     ],
   },
   categoria_contabil: {

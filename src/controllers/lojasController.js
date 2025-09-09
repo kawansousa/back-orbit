@@ -2,6 +2,7 @@ const { body, validationResult } = require("express-validator");
 const Loja = require("../models/lojas.model");
 const User = require("../models/user.model");
 const bcrypt = require("bcrypt");
+const { Role, ALL_PERMISSIONS } = require("../models/role.model");
 
 exports.createLoja = async (req, res) => {
   const validations = [
@@ -16,7 +17,6 @@ exports.createLoja = async (req, res) => {
         }
         return true;
       }),
-
     body("lojasNome")
       .trim()
       .notEmpty()
@@ -53,14 +53,13 @@ exports.createLoja = async (req, res) => {
       .isLength({ min: 3, max: 150 })
       .withMessage("Razão social deve ter entre 3 e 150 caracteres")
       .custom(async (value, { req }) => {
-        const empresas = req.body.empresas;
-        const empresaExistente = empresas.find(
-          (empresa) => empresa.razao === value
-        );
-        if (empresaExistente) {
+        const EmpresaExistente = await Loja.findOne({
+          "empresas.razao": value,
+        });
+        if (EmpresaExistente) {
           throw new Error("Empresa com essa razão social ja cadastrada");
         }
-        return true;
+        return;
       }),
 
     body("empresas.*.nomeFantasia")
@@ -70,14 +69,12 @@ exports.createLoja = async (req, res) => {
       .isLength({ min: 3, max: 100 })
       .withMessage("Nome fantasia deve ter entre 3 e 100 caracteres")
       .custom(async (value, { req }) => {
-        const empresas = req.body.empresas;
-        const empresaExistente = empresas.find(
-          (empresa) => empresa.razao === value
-        );
-        if (empresaExistente) {
-          throw new Error("Empresa com essa razão social ja cadastrada");
+        const EmpresaExistente = await Loja.findOne({
+          "empresas.nomeFantasia": value,
+        });
+        if (EmpresaExistente) {
+          throw new Error("Empresa com esse nome fantasia ja cadastrada");
         }
-        return true;
       }),
 
     body("empresas.*.cnpj")
@@ -197,28 +194,21 @@ exports.createLoja = async (req, res) => {
       .normalizeEmail()
       .custom(async (value) => {
         const userExistente = await User.findOne({ email: value });
-        if (userExistente) {
+        if (userExistente)
           throw new Error("Email já está cadastrado no sistema");
-        }
         return true;
       }),
-
     body("password")
-      .isLength({ min: 8, max: 50 })
-      .withMessage("Senha deve ter entre 8 e 50 caracteres"),
+      .isLength({ min: 8 })
+      .withMessage("Senha deve ter no mínimo 8 caracteres"),
   ];
-  await Promise.all(validations.map((validation) => validation.run(req)));
 
+  await Promise.all(validations.map((validation) => validation.run(req)));
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
-      error: "Dados inválidos",
-      details: errors.array().map((err) => ({
-        field: err.path,
-        message: err.msg,
-        value: err.value,
-      })),
-    });
+    return res
+      .status(400)
+      .json({ error: "Dados inválidos", details: errors.array() });
   }
 
   const {
@@ -249,47 +239,24 @@ exports.createLoja = async (req, res) => {
       },
     }));
 
-    const permissoesPadrao = [
-      {
-        permissoes: {
-          vendas: {
-            desconto_limite: 100,
-            alterar: true,
-            cancelar: true,
-          },
-          cadastro: {
-            fornecedor: true,
-            cliente: true,
-            grupo: true,
-            usuario: true,
-          },
-          acessos: {
-            dashboard: true,
-            produto: true,
-            entrada: true,
-            saida: true,
-            etiqueta: true,
-            fornecedor: true,
-            cliente: true,
-            grupo: true,
-            usuario: true,
-            pdv: true,
-            orcamentos: true,
-            os: true,
-            servicos: true,
-            mecanicos: true,
-            caixa: true,
-            receber: true,
-            pagar: true,
-            gestao: true,
-            relatorios: true,
-            transferencia: true,
-            comandas: true,
-            trocas: true,
-          },
-        },
-      },
-    ];
+    const primeiraEmpresa = empresas[0];
+
+    let adminRole = await Role.findOne({
+      name: "Administrador",
+      codigo_loja: codigo_loja,
+    });
+
+    if (!adminRole) {
+      adminRole = new Role({
+        name: "Administrador",
+        description: "Acesso total ao sistema.",
+        permissions: ALL_PERMISSIONS,
+        codigo_loja: codigo_loja,
+        codigo_empresa: primeiraEmpresa.codigo_empresa,
+        status: "ativo",
+      });
+      await adminRole.save();
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -299,8 +266,8 @@ exports.createLoja = async (req, res) => {
       email,
       password: hashedPassword,
       acesso_loja: acessoLoja,
-      type: "Administrador",
-      permissions: permissoesPadrao,
+      role: adminRole._id,
+      status: "ativo",
     });
 
     await usuarioCriado.save();
@@ -510,14 +477,10 @@ exports.createEmpresa = async (req, res) => {
     const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
 
     if (!loja) {
-      return res.status(404).json({
-        error: "Loja não encontrada",
-        message: "Não foi possível encontrar a loja especificada",
-      });
+      return res.status(404).json({ error: "Loja não encontrada" });
     }
 
     const codigo_empresa = req.body.codigo_empresa;
-
     const novaEmpresa = {
       codigo_empresa,
       razao,
@@ -536,39 +499,246 @@ exports.createEmpresa = async (req, res) => {
     loja.empresas.push(novaEmpresa);
     await loja.save();
 
-    const novoAcesso = {
+    const newAdminRole = new Role({
+      name: "Administrador",
+      description: "Acesso total ao sistema.",
+      permissions: ALL_PERMISSIONS,
       codigo_loja: codigo_loja,
-      codigo_empresas: {
-        codigo: codigo_empresa,
-        nome: nomeFantasia,
-      },
-    };
+      codigo_empresa: novaEmpresa.codigo_empresa,
+      status: "ativo",
+    });
+    await newAdminRole.save();
 
-    await User.updateMany(
-      {
-        "acesso_loja.codigo_loja": codigo_loja,
-        type: "Administrador",
-      },
-      {
+    const adminRolesInStore = await Role.find({
+      name: "Administrador",
+      codigo_loja: codigo_loja,
+    });
+
+    if (adminRolesInStore.length > 0) {
+      const adminRoleIds = adminRolesInStore.map((role) => role._id);
+
+      const novoAcesso = {
+        codigo_loja: codigo_loja,
+        codigo_empresas: {
+          codigo: novaEmpresa.codigo_empresa,
+          nome: novaEmpresa.nomeFantasia,
+        },
+      };
+
+      const query = {
+        role: { $in: adminRoleIds },
+      };
+
+      const resultadoUpdate = await User.updateMany(query, {
         $push: { acesso_loja: novoAcesso },
-      }
-    );
+      });
+
+      console.log("Resultado da atualização de usuários administradores:");
+      console.log(`  Documentos encontrados: ${resultadoUpdate.matchedCount}`);
+      console.log(`  Documentos modificados: ${resultadoUpdate.modifiedCount}`);
+    }
 
     res.status(201).json({
       message: "Empresa criada com sucesso!",
       empresa: novaEmpresa,
-      loja: {
-        codigo_loja: loja.codigo_loja,
-        lojasNome: loja.lojasNome,
-        total_empresas: loja.empresas.length,
-      },
     });
   } catch (error) {
     console.error("Erro ao criar empresa:", error);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
+};
 
+exports.updateEmpresa = async (req, res) => {
+  const validations = [
+    body("codigo_loja")
+      .trim()
+      .notEmpty()
+      .withMessage("Código da loja é obrigatório."),
+
+    body("razao")
+      .trim()
+      .notEmpty()
+      .withMessage("Razão social é obrigatória.")
+      .isLength({ min: 3, max: 150 })
+      .withMessage("Razão social deve ter entre 3 e 150 caracteres.")
+      .custom(async (value, { req }) => {
+        const empresaId = req.params.empresaId;
+        const loja = await Loja.findOne({ "empresas.razao": value });
+        if (loja) {
+          const empresaExistente = loja.empresas.find(e => e.razao === value);
+
+          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+            throw new Error("Já existe outra empresa com esta razão social.");
+          }
+        }
+        return true;
+      }),
+
+    body("nomeFantasia")
+      .trim()
+      .notEmpty()
+      .withMessage("Nome fantasia é obrigatório.")
+      .isLength({ min: 3, max: 100 })
+      .withMessage("Nome fantasia deve ter entre 3 e 100 caracteres.")
+       .custom(async (value, { req }) => {
+        const empresaId = req.params.empresaId;
+        const loja = await Loja.findOne({ "empresas.nomeFantasia": value });
+        if (loja) {
+          const empresaExistente = loja.empresas.find(e => e.nomeFantasia === value);
+          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+            throw new Error("Já existe outra empresa com este nome fantasia.");
+          }
+        }
+        return true;
+      }),
+
+    body("cnpj")
+      .trim()
+      .notEmpty()
+      .withMessage("CNPJ é obrigatório.")
+      .matches(/^\d{14}$/)
+      .withMessage("CNPJ deve conter apenas 14 números.")
+      .custom(async (value, { req }) => {
+        const empresaId = req.params.empresaId;
+        const loja = await Loja.findOne({ "empresas.cnpj": value });
+         if (loja) {
+          const empresaExistente = loja.empresas.find(e => e.cnpj === value);
+          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+            throw new Error("CNPJ já está cadastrado em outra empresa.");
+          }
+        }
+        return true;
+      }),
+
+    body("email")
+      .optional({ checkFalsy: true })
+      .isEmail()
+      .withMessage("Formato de e-mail inválido.")
+      .normalizeEmail(),
+
+    body("fone")
+      .optional({ checkFalsy: true })
+      .matches( /^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?9?[0-9]{4}-?[0-9]{4}$|^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?[2-5][0-9]{3}-?[0-9]{4}$/)
+      .withMessage("Formato de telefone inválido."),
+  ];
+
+  await Promise.all(validations.map((validation) => validation.run(req)));
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: "Dados inválidos",
+      details: errors.array(),
+    });
+  }
+
+  try {
+    const { empresaId } = req.params;
+    const { codigo_loja } = req.body;
+
+    const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
+
+    if (!loja) {
+      return res.status(404).json({ error: "Loja não encontrada." });
+    }
+
+    const empresa = loja.empresas.id(empresaId);
+
+    if (!empresa) {
+      return res.status(404).json({ error: "Empresa não encontrada nesta loja." });
+    }
+    
+    const nomeFantasiaAntigo = empresa.nomeFantasia;
+
+    empresa.set(req.body);
+
+    await loja.save();
+    
+    if (req.body.nomeFantasia && req.body.nomeFantasia !== nomeFantasiaAntigo) {
+        await User.updateMany(
+            { "acesso_loja.codigo_empresas.codigo": empresa.codigo_empresa },
+            { $set: { "acesso_loja.$.codigo_empresas.nome": req.body.nomeFantasia } }
+        );
+    }
+
+    res.status(200).json({
+      message: "Empresa atualizada com sucesso!",
+      empresa: empresa,
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar empresa:", error);
+    res.status(500).json({ error: "Erro interno do servidor ao atualizar a empresa." });
+  }
+};
+
+exports.getEmpresaByLoja = async (req, res) => {
+  try {
+    const { codigo_loja, empresaId } = req.query;
+
+    if (!codigo_loja || !empresaId) {
+      return res.status(400).json({
+        error: "Parâmetros inválidos",
+        message: "É necessário informar codigo_loja e empresaId",
+      });
+    }
+
+    const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
+
+    if (!loja) {
+      return res.status(404).json({
+        error: "Loja não encontrada",
+        message: "Nenhuma loja encontrada com esse código",
+      });
+    }
+
+    const empresa = loja.empresas.id(empresaId);
+
+    if (!empresa) {
+      return res.status(404).json({
+        error: "Empresa não encontrada",
+        message: "Nenhuma empresa encontrada com esse ID nessa loja",
+      });
+    }
+
+    res.json(empresa);
+  } catch (error) {
+    console.error("Erro ao buscar empresa da loja:", error);
     res.status(500).json({
       error: "Erro interno do servidor",
-      message: "Não foi possível criar a empresa. Tente novamente.",
+      message: "Não foi possível buscar a empresa",
+    });
+  }
+};
+
+exports.listEmpresasByCodigoLoja = async (req, res) => {
+  try {
+    const { codigo_loja } = req.query;
+
+    if (!codigo_loja) {
+      return res.status(400).json({
+        error: "Parâmetros inválidos",
+        message: "É necessário informar o código da loja (`codigo_loja`).",
+      });
+    }
+
+    const loja = await Loja.findOne({ codigo_loja: parseInt(codigo_loja) });
+
+    if (!loja) {
+      return res.status(404).json({
+        error: "Loja não encontrada",
+        message: "Nenhuma loja encontrada com esse código.",
+      });
+    }
+
+    res.status(200).json({
+      message: "Empresas encontradas com sucesso!",
+      empresas: loja.empresas,
+    });
+  } catch (error) {
+    console.error("Erro ao listar empresas da loja:", error);
+    res.status(500).json({
+      error: "Erro interno do servidor",
+      message: "Não foi possível listar as empresas.",
     });
   }
 };

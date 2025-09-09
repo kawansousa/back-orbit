@@ -1,5 +1,5 @@
-const Caixa = require('../models/caixa.model');
-const Movimentacao = require('../models/movimentacoes_caixa.model');
+const Caixa = require("../models/caixa.model");
+const Movimentacao = require("../models/movimentacoes_caixa.model");
 
 exports.abrirCaixa = async (req, res) => {
   try {
@@ -9,39 +9,42 @@ exports.abrirCaixa = async (req, res) => {
       codigo_caixa,
       responsavel_abertura,
       saldo_inicial,
-      caixa
+      caixa,
     } = req.body;
 
     const caixaAberto = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
       caixa,
-      status: 'aberto'
+      status: "aberto",
     });
 
     if (caixaAberto) {
-      return res.status(400).json({ message: 'Já existe um caixa aberto para esta loja' });
+      return res
+        .status(400)
+        .json({ message: "Já existe um caixa aberto para esta loja" });
     }
 
     const ultimoCaixa = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
       caixa,
-      status: 'fechado'
-    }).sort({ codigo_caixa: -1});
+      status: "fechado",
+    }).sort({ codigo_caixa: -1 });
 
-
-    const saldoInicialReal = ultimoCaixa ? ultimoCaixa.saldo_final : saldo_inicial;
+    const saldoInicialReal = ultimoCaixa
+      ? ultimoCaixa.saldo_final
+      : saldo_inicial;
 
     const novoCaixa = new Caixa({
       codigo_loja,
       codigo_empresa,
       codigo_caixa,
       responsavel_abertura,
-      saldo_inicial: saldoInicialReal || '0',
-      saldo_final: saldoInicialReal || '0', 
-      status: 'aberto',
-      caixa
+      saldo_inicial: saldoInicialReal || "0",
+      saldo_final: saldoInicialReal || "0",
+      status: "aberto",
+      caixa,
     });
 
     await novoCaixa.save();
@@ -69,11 +72,11 @@ exports.registrarMovimentacao = async (req, res) => {
     const caixa = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
-      status: 'aberto'
+      status: "aberto",
     });
 
-    if (!caixa || caixa.status !== 'aberto') {
-      return res.status(400).json({ message: 'Caixa não está aberto' });
+    if (!caixa || caixa.status !== "aberto") {
+      return res.status(400).json({ message: "Caixa não está aberto" });
     }
 
     const novaMovimentacao = new Movimentacao({
@@ -87,16 +90,16 @@ exports.registrarMovimentacao = async (req, res) => {
       valor,
       origem,
       documento_origem,
-      numero_movimentacao: Date.now(), 
+      numero_movimentacao: Date.now(),
       meio_pagamento,
       categoria_contabil,
       obsevacao,
     });
 
-    if (meio_pagamento.toLowerCase() === 'dinheiro') {
-      if (tipo_movimentacao === 'entrada') {
+    if (meio_pagamento.toLowerCase() === "dinheiro") {
+      if (tipo_movimentacao === "entrada") {
         caixa.saldo_final += valor;
-      } else if (tipo_movimentacao === 'saida') {
+      } else if (tipo_movimentacao === "saida") {
         caixa.saldo_final -= valor;
       }
       await caixa.save();
@@ -116,17 +119,17 @@ exports.detalhesCaixa = async (req, res) => {
     const caixa = await Caixa.findById(caixaId);
 
     if (!caixa) {
-      return res.status(404).json({ message: 'Caixa não encontrado' });
+      return res.status(404).json({ message: "Caixa não encontrado" });
     }
 
     const movimentacoes = await Movimentacao.find({ caixaId: caixa._id });
 
     const totalReceitas = movimentacoes
-      .filter(mov => mov.tipo_movimentacao === 'entrada')
+      .filter((mov) => mov.tipo_movimentacao === "entrada")
       .reduce((sum, mov) => sum + mov.valor, 0);
 
     const totalDespesas = movimentacoes
-      .filter(mov => mov.tipo_movimentacao === 'saida')
+      .filter((mov) => mov.tipo_movimentacao === "saida")
       .reduce((sum, mov) => sum + mov.valor, 0);
 
     const pagamentoStats = movimentacoes.reduce((acc, mov) => {
@@ -134,51 +137,52 @@ exports.detalhesCaixa = async (req, res) => {
       if (!acc[method]) {
         acc[method] = { entradas: 0, saidas: 0, total: 0 };
       }
-      
-      if (mov.tipo_movimentacao === 'entrada') {
+
+      if (mov.tipo_movimentacao === "entrada") {
         acc[method].entradas += mov.valor;
       } else {
         acc[method].saidas += mov.valor;
       }
       acc[method].total = acc[method].entradas - acc[method].saidas;
-      
+
       return acc;
     }, {});
 
     const movimentacoesDinheiro = movimentacoes.filter(
-      mov => mov.meio_pagamento.toLowerCase() === 'dinheiro'
+      (mov) => mov.meio_pagamento.toLowerCase() === "dinheiro"
     );
-    
+
     const totalDinheiroEntradas = movimentacoesDinheiro
-      .filter(mov => mov.tipo_movimentacao === 'entrada')
+      .filter((mov) => mov.tipo_movimentacao === "entrada")
       .reduce((sum, mov) => sum + mov.valor, 0);
-      
+
     const totalDinheiroSaidas = movimentacoesDinheiro
-      .filter(mov => mov.tipo_movimentacao === 'saida')
+      .filter((mov) => mov.tipo_movimentacao === "saida")
       .reduce((sum, mov) => sum + mov.valor, 0);
 
     const total_movimento = totalReceitas - totalDespesas;
 
-    const saldo_dinheiro_calculado = caixa.saldo_inicial + totalDinheiroEntradas - totalDinheiroSaidas;
+    const saldo_dinheiro_calculado =
+      caixa.saldo_inicial + totalDinheiroEntradas - totalDinheiroSaidas;
 
     res.status(200).json({
       caixa,
       movimentacoes,
       resumo: {
         saldo_inicial: caixa.saldo_inicial,
-        saldo_final_caixa: caixa.saldo_final, 
-        saldo_dinheiro_calculado, 
-        diferenca_saldo: caixa.saldo_final - saldo_dinheiro_calculado, 
+        saldo_final_caixa: caixa.saldo_final,
+        saldo_dinheiro_calculado,
+        diferenca_saldo: caixa.saldo_final - saldo_dinheiro_calculado,
         totalReceitas,
         totalDespesas,
-        total_movimento, 
+        total_movimento,
         dinheiro: {
           entradas: totalDinheiroEntradas,
           saidas: totalDinheiroSaidas,
-          saldo: totalDinheiroEntradas - totalDinheiroSaidas
+          saldo: totalDinheiroEntradas - totalDinheiroSaidas,
         },
-        pagamentoStats 
-      }
+        pagamentoStats,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -192,18 +196,18 @@ exports.fecharCaixa = async (req, res) => {
     const caixa = await Caixa.findOne({
       codigo_loja,
       codigo_empresa,
-      status: 'aberto'
+      status: "aberto",
     });
 
     if (!caixa) {
-      return res.status(404).json({ message: 'Caixa não encontrado' });
+      return res.status(404).json({ message: "Caixa não encontrado" });
     }
 
-    if (caixa.status === 'fechado') {
-      return res.status(400).json({ message: 'Caixa já está fechado' });
+    if (caixa.status === "fechado") {
+      return res.status(400).json({ message: "Caixa já está fechado" });
     }
 
-    caixa.status = 'fechado';
+    caixa.status = "fechado";
     caixa.data_fechamento = new Date();
 
     await caixa.save();
@@ -223,11 +227,10 @@ exports.listarCaixas = async (req, res) => {
       codigo_empresa,
     };
 
-    const caixas = await Caixa.find(searchQuery)
-      .sort({ codigo_caixa: -1 });
+    const caixas = await Caixa.find(searchQuery).sort({ codigo_caixa: -1 });
 
     const ultimosCaixasAbertos = {};
-    caixas.forEach(caixa => {
+    caixas.forEach((caixa) => {
       if (!ultimosCaixasAbertos[caixa.caixa]) {
         ultimosCaixasAbertos[caixa.caixa] = caixa;
       }
@@ -237,7 +240,7 @@ exports.listarCaixas = async (req, res) => {
 
     res.status(200).json({
       data: result,
-      total: result.length
+      total: result.length,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -246,26 +249,82 @@ exports.listarCaixas = async (req, res) => {
 
 exports.listarTodosCaixas = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page = 1, limit = 20, searchTerm = '' } = req.query;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      page = 1,
+      limit = 20,
+      searchTerm,
+      searchType,
+      data_inicio,
+      data_fim,
+    } = req.query;
 
     const searchQuery = {
       codigo_loja,
       codigo_empresa,
     };
 
-    if (searchTerm && searchTerm.trim() !== '') {
-      searchQuery.$or = [
-        { responsavel_abertura: { $regex: searchTerm, $options: 'i' } },
-        { responsavel_fechamento: { $regex: searchTerm, $options: 'i' } },
-        { codigo_caixa: { $regex: searchTerm, $options: 'i' } },
-        { caixa: parseInt(searchTerm) || 0 }
-      ];
+    if (searchTerm && searchTerm.trim() !== "") {
+      const termoBusca = searchTerm.trim();
+
+      if (searchType === "todos") {
+        const conditions = [];
+
+        if (!isNaN(termoBusca)) {
+          conditions.push({ codigo_caixa: parseInt(termoBusca, 10) });
+          conditions.push({ caixa: parseInt(termoBusca, 10) });
+          conditions.push({ saldo_inicial: parseInt(termoBusca, 10) });
+          conditions.push({ saldo_final: parseInt(termoBusca, 10) });
+        }
+
+        conditions.push({ status: { $regex: termoBusca, $options: "i" } });
+        conditions.push({
+          responsavel_abertura: { $regex: termoBusca, $options: "i" },
+        });
+
+        searchQuery.$or = conditions;
+      } else {
+        switch (searchType) {
+          case "codigo_caixa":
+          case "caixa":
+          case "saldo_inicial":
+          case "saldo_final":
+            if (!isNaN(termoBusca)) {
+              searchQuery[searchType] = parseInt(termoBusca, 10);
+            } else {
+              searchQuery[searchType] = -1;
+            }
+            break;
+          case "status":
+          case "responsavel_abertura":
+            searchQuery[searchType] = { $regex: termoBusca, $options: "i" };
+            break;
+          default:
+            break;
+        }
+      }
+    }
+
+    if (data_inicio && data_fim) {
+      const dataInicial = new Date(data_inicio);
+      const dataFinal = new Date(data_fim);
+
+      searchQuery.data_abertura = {
+        $gte: dataInicial,
+        $lte: dataFinal,
+      };
+
+      searchQuery.data_fechamento = {
+        $gte: dataInicial,
+        $lte: dataFinal,
+      };
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const caixas = await Caixa.find(searchQuery)
-      .sort({ data_abertura: -1, codigo_caixa: -1 }) 
+      .sort({ data_abertura: -1, codigo_caixa: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -277,7 +336,7 @@ exports.listarTodosCaixas = async (req, res) => {
       currentPage: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
       hasNextPage: skip + caixas.length < total,
-      hasPrevPage: parseInt(page) > 1
+      hasPrevPage: parseInt(page) > 1,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

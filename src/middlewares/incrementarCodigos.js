@@ -10,10 +10,6 @@ module.exports = async function incrementarCodigos(req, res, next) {
 
       const ultimoCodigo = ultimaLoja?.codigo_loja || 0;
       req.body.codigo_loja = parseInt(ultimoCodigo) + 1;
-
-      console.log(
-        `Código da loja gerado automaticamente: ${req.body.codigo_loja}`
-      );
     }
 
     if (
@@ -23,11 +19,7 @@ module.exports = async function incrementarCodigos(req, res, next) {
     ) {
       req.body.empresas.forEach((empresa, index) => {
         if (!empresa.codigo_empresa) {
-          empresa.codigo_empresa = (index + 1).toString().padStart(3, "0");
-
-          console.log(
-            `Código da empresa ${index + 1} gerado: ${empresa.codigo_empresa}`
-          );
+          empresa.codigo_empresa = (index + 1).toString();
         } else {
           empresa.codigo_empresa = empresa.codigo_empresa
             .toString()
@@ -71,10 +63,6 @@ module.exports = async function incrementarCodigos(req, res, next) {
           req.body.codigo_empresa = (maiorCodigo + 1)
             .toString()
             .padStart(3, "0");
-
-          console.log(
-            `Código da nova empresa gerado: ${req.body.codigo_empresa}`
-          );
         }
       } catch (empresaError) {
         console.error("Erro ao gerar código da empresa:", empresaError);

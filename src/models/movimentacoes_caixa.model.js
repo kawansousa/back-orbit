@@ -78,6 +78,7 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
       "cartao_credito",
       "cartao_debito",
       "cheque",
+      "boleto",
       "aprazo",
       "transferencia",
     ],

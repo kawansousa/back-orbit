@@ -378,13 +378,15 @@ exports.liquidarPagar = async (req, res) => {
       codigo_empresa,
       codigo_pagar,
       valor,
-      meio_pagamento,
+      forma_pagamento,
       observacao,
       codigo_movimento,
       dados_transferencia,
     } = req.body;
 
-    if (!codigo_loja || !codigo_empresa || !codigo_pagar || !meio_pagamento) {
+    console.log(req.body)
+
+    if (!codigo_loja || !codigo_empresa || !codigo_pagar || !forma_pagamento) {
       await session.abortTransaction();
       return res.status(400).json({ error: "Campos obrigatórios faltando." });
     }
@@ -395,9 +397,9 @@ exports.liquidarPagar = async (req, res) => {
       return res.status(400).json({ error: "Valor inválido ou menor/igual a zero." });
     }
 
-    if (meio_pagamento === "transferencia" && (!dados_transferencia || !dados_transferencia.codigo_conta_bancaria_origem)) {
+    if (forma_pagamento === "transferencia" && (!dados_transferencia || !dados_transferencia.codigo_conta_bancaria)) {
       await session.abortTransaction();
-      return res.status(400).json({ error: "Para transferência, 'dados_transferencia' com 'codigo_conta_bancaria_origem' é obrigatório." });
+      return res.status(400).json({ error: "Para transferência, 'dados_transferencia' com 'codigo_conta_bancaria' é obrigatório." });
     }
 
     const contaAPagar = await Pagar.findOne({
@@ -426,7 +428,7 @@ exports.liquidarPagar = async (req, res) => {
       { codigo_loja, codigo_empresa, codigo_pagar },
       {
         $set: { valor_restante: novoValorRestante, status: novoStatus },
-        $push: { liquidacoes: { valor: valorNumerico, meio_pagamento, observacao } },
+        $push: { liquidacoes: { valor: valorNumerico, forma_pagamento, observacao } },
       },
       { new: true, session }
     );
@@ -437,13 +439,13 @@ exports.liquidarPagar = async (req, res) => {
       codigo_movimento,
       tipo_movimentacao: "saida",
       valor: valorNumerico,
-      meio_pagamento,
+      meio_pagamento: forma_pagamento,
       documento_origem: codigo_pagar,
       origem: "pagar",
       categoria_contabil: "2.1.1",
     };
 
-    if (meio_pagamento === "dinheiro") {
+    if (forma_pagamento === "dinheiro") {
       const caixa = await Caixa.findOne({ codigo_loja, codigo_empresa, status: "aberto" }).session(session);
       if (!caixa) {
         await session.abortTransaction();
@@ -457,7 +459,7 @@ exports.liquidarPagar = async (req, res) => {
       await caixa.save({ session });
       movimentacao.caixaId = caixa._id;
       movimentacao.codigo_caixa = caixa.codigo_caixa;
-    } else if (meio_pagamento === "pix") {
+    } else if (forma_pagamento === "pix") {
       const contaBancariaPadrao = await ContasBancarias.findOne({ codigo_loja, codigo_empresa, conta_padrao: true }).session(session);
       if (!contaBancariaPadrao) {
         await session.abortTransaction();
@@ -470,11 +472,11 @@ exports.liquidarPagar = async (req, res) => {
       contaBancariaPadrao.saldo -= valorNumerico;
       await contaBancariaPadrao.save({ session });
       movimentacao.codigo_conta_bancaria = contaBancariaPadrao.codigo_conta_bancaria;
-    } else if (meio_pagamento === "transferencia") {
+    } else if (forma_pagamento === "transferencia") {
       const contaOrigem = await ContasBancarias.findOne({
         codigo_loja,
         codigo_empresa,
-        codigo_conta_bancaria: dados_transferencia.codigo_conta_bancaria_origem,
+        codigo_conta_bancaria: dados_transferencia.codigo_conta_bancaria,
       }).session(session);
       if (!contaOrigem) {
         await session.abortTransaction();

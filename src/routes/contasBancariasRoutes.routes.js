@@ -19,6 +19,11 @@ router.get(
   contasBancariasController.listaMovimentacaoContaBancaria
 );
 router.get(
+  "/conta-padrao",
+  checkPermission("ler"),
+  contasBancariasController.obterContaPadrao
+)
+router.get(
   "/:id",
   checkPermission("conta_bancaria:ler"),
   contasBancariasController.listarContaBancaria
@@ -38,11 +43,21 @@ router.post(
 );
 
 router.put(
+  "/definir-padrao",
+  checkPermission("atualizar"),
+  contasBancariasController.definirContaPadrao
+)
+router.put(
   "/:id",
   checkPermission("conta_bancaria:atualizar"),
   contasBancariasController.atualizarContaBancaria
 );
 
+router.delete(
+  "/remover-padrao",
+  checkPermission("deletar"),
+  contasBancariasController.removerContaPadrao
+)
 router.delete(
   "/:id",
   checkPermission("conta_bancaria:deletar"),

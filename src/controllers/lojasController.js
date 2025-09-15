@@ -3,6 +3,7 @@ const Loja = require("../models/lojas.model");
 const User = require("../models/user.model");
 const bcrypt = require("bcrypt");
 const { Role, ALL_PERMISSIONS } = require("../models/role.model");
+const Caixa = require("../models/caixa.model");
 
 exports.createLoja = async (req, res) => {
   const validations = [
@@ -273,6 +274,17 @@ exports.createLoja = async (req, res) => {
     await usuarioCriado.save();
 
     const { password: _, ...usuarioSemSenha } = usuarioCriado.toObject();
+
+    for (const empresa of novaLoja.empresas) {
+      const novoCaixa = new Caixa({
+        codigo_loja: novaLoja.codigo_loja,
+        codigo_empresa: empresa.codigo_empresa,
+        caixa: 1,
+        responsavel_abertura: novaLoja.responsavel,
+        status: "fechado",
+      });
+      await novoCaixa.save();
+    }
 
     res.status(201).json({
       message: "Loja e usuário criados com sucesso!",
@@ -565,9 +577,12 @@ exports.updateEmpresa = async (req, res) => {
         const empresaId = req.params.empresaId;
         const loja = await Loja.findOne({ "empresas.razao": value });
         if (loja) {
-          const empresaExistente = loja.empresas.find(e => e.razao === value);
+          const empresaExistente = loja.empresas.find((e) => e.razao === value);
 
-          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+          if (
+            empresaExistente &&
+            empresaExistente._id.toString() !== empresaId
+          ) {
             throw new Error("Já existe outra empresa com esta razão social.");
           }
         }
@@ -580,12 +595,17 @@ exports.updateEmpresa = async (req, res) => {
       .withMessage("Nome fantasia é obrigatório.")
       .isLength({ min: 3, max: 100 })
       .withMessage("Nome fantasia deve ter entre 3 e 100 caracteres.")
-       .custom(async (value, { req }) => {
+      .custom(async (value, { req }) => {
         const empresaId = req.params.empresaId;
         const loja = await Loja.findOne({ "empresas.nomeFantasia": value });
         if (loja) {
-          const empresaExistente = loja.empresas.find(e => e.nomeFantasia === value);
-          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+          const empresaExistente = loja.empresas.find(
+            (e) => e.nomeFantasia === value
+          );
+          if (
+            empresaExistente &&
+            empresaExistente._id.toString() !== empresaId
+          ) {
             throw new Error("Já existe outra empresa com este nome fantasia.");
           }
         }
@@ -601,9 +621,12 @@ exports.updateEmpresa = async (req, res) => {
       .custom(async (value, { req }) => {
         const empresaId = req.params.empresaId;
         const loja = await Loja.findOne({ "empresas.cnpj": value });
-         if (loja) {
-          const empresaExistente = loja.empresas.find(e => e.cnpj === value);
-          if (empresaExistente && empresaExistente._id.toString() !== empresaId) {
+        if (loja) {
+          const empresaExistente = loja.empresas.find((e) => e.cnpj === value);
+          if (
+            empresaExistente &&
+            empresaExistente._id.toString() !== empresaId
+          ) {
             throw new Error("CNPJ já está cadastrado em outra empresa.");
           }
         }
@@ -618,7 +641,9 @@ exports.updateEmpresa = async (req, res) => {
 
     body("fone")
       .optional({ checkFalsy: true })
-      .matches( /^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?9?[0-9]{4}-?[0-9]{4}$|^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?[2-5][0-9]{3}-?[0-9]{4}$/)
+      .matches(
+        /^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?9?[0-9]{4}-?[0-9]{4}$|^(?:\+55\s?)?\(?[1-9][1-9]\)?\s?[2-5][0-9]{3}-?[0-9]{4}$/
+      )
       .withMessage("Formato de telefone inválido."),
   ];
 
@@ -645,20 +670,24 @@ exports.updateEmpresa = async (req, res) => {
     const empresa = loja.empresas.id(empresaId);
 
     if (!empresa) {
-      return res.status(404).json({ error: "Empresa não encontrada nesta loja." });
+      return res
+        .status(404)
+        .json({ error: "Empresa não encontrada nesta loja." });
     }
-    
+
     const nomeFantasiaAntigo = empresa.nomeFantasia;
 
     empresa.set(req.body);
 
     await loja.save();
-    
+
     if (req.body.nomeFantasia && req.body.nomeFantasia !== nomeFantasiaAntigo) {
-        await User.updateMany(
-            { "acesso_loja.codigo_empresas.codigo": empresa.codigo_empresa },
-            { $set: { "acesso_loja.$.codigo_empresas.nome": req.body.nomeFantasia } }
-        );
+      await User.updateMany(
+        { "acesso_loja.codigo_empresas.codigo": empresa.codigo_empresa },
+        {
+          $set: { "acesso_loja.$.codigo_empresas.nome": req.body.nomeFantasia },
+        }
+      );
     }
 
     res.status(200).json({
@@ -667,7 +696,9 @@ exports.updateEmpresa = async (req, res) => {
     });
   } catch (error) {
     console.error("Erro ao atualizar empresa:", error);
-    res.status(500).json({ error: "Erro interno do servidor ao atualizar a empresa." });
+    res
+      .status(500)
+      .json({ error: "Erro interno do servidor ao atualizar a empresa." });
   }
 };
 

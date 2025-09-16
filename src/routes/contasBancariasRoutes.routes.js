@@ -28,11 +28,6 @@ router.get(
   checkPermission("ler"),
   contasBancariasController.obterContaPadrao
 )
-router.get(
-  "/:id",
-  checkPermission("conta_bancaria:ler"),
-  contasBancariasController.listarContaBancaria
-);
 
 router.post(
   "/",
@@ -63,10 +58,5 @@ router.delete(
   checkPermission("deletar"),
   contasBancariasController.removerContaPadrao
 )
-router.delete(
-  "/:id",
-  checkPermission("conta_bancaria:deletar"),
-  contasBancariasController.excluirContaBancaria
-);
 
 module.exports = router;

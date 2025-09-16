@@ -41,11 +41,11 @@ router.post(
   contasBancariasController.adicionarContaBancaria
 );
 router.post(
-  "/registraMovimentacaoBanco",
+  "/movimentacao-bancaria",
   checkPermission("conta_bancaria:movimentar"),
   autoIncrementMovimentoBanco,
-  contasBancariasController.registrarMovimentacaoBanco
-);
+  contasBancariasController.criarMovimentacaoBancaria
+)
 
 router.put(
   "/definir-padrao",

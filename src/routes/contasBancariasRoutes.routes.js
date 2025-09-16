@@ -14,6 +14,11 @@ router.get(
   contasBancariasController.listarContasBancarias
 );
 router.get(
+  "/saldoTotal",
+  checkPermission("conta_bancaria:ler"),
+  contasBancariasController.saldoTotalContasBancarias
+)
+router.get(
   "/movimentacaoBanco",
   checkPermission("conta_bancaria:ler"),
   contasBancariasController.listaMovimentacaoContaBancaria

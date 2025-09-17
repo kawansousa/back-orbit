@@ -24,6 +24,7 @@ const servicosRoutes = require("./routes/servicosRoutes.routes");
 const osRoutes = require("./routes/osRoutes.routes");
 const mecanicosRoutes = require("./routes/mecanicosRoutes.routes");
 const pagarRoutes = require("./routes/pagar.routes");
+const landingPageRoutes = require("./routes/landingPage.routes")
 const auth = require("./middlewares/auth");
 
 app.use(cors());
@@ -51,6 +52,7 @@ app.use("/os", auth, osRoutes);
 app.use("/servicos", auth, servicosRoutes);
 app.use("/mecanicos", auth, mecanicosRoutes);
 app.use("/pagar", auth, pagarRoutes);
+app.use("/landingPage", auth, landingPageRoutes);
 
 connectToDatabase();
 module.exports = app;

@@ -17,6 +17,12 @@ router.get(
   checkPermission("empresa:ler"),
   lojasController.listEmpresasByCodigoLoja
 );
+router.get(
+  "/empresa-logada",
+  auth,
+  checkPermission("empresa:ler"),
+  lojasController.buscarEmpresaByCodigoEmpresa
+)
 
 router.post(
   "/empresa",

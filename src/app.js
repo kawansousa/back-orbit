@@ -8,6 +8,7 @@ const userRoutes = require("./routes/user.routes");
 const roleRoutes = require("./routes/role.routes");
 const lojasRoutes = require("./routes/lojas.routes");
 const produtosRoutes = require("./routes/produtos.routes");
+const produtosSercice = require("./routes/produtosSite.routes.js");
 const clientesRoutes = require("./routes/clientes.routes");
 const fornecedoresRoutes = require("./routes/fornecedores.routes");
 const cidadesRoutes = require("./routes/cidades.routes");
@@ -24,7 +25,7 @@ const servicosRoutes = require("./routes/servicosRoutes.routes");
 const osRoutes = require("./routes/osRoutes.routes");
 const mecanicosRoutes = require("./routes/mecanicosRoutes.routes");
 const pagarRoutes = require("./routes/pagar.routes");
-const landingPageRoutes = require("./routes/landingPage.routes")
+const landingPageRoutes = require("./routes/landingPage.routes");
 const auth = require("./middlewares/auth");
 
 app.use(cors());
@@ -36,6 +37,7 @@ app.use("/lojas", lojasRoutes);
 
 app.use("/roles", auth, roleRoutes);
 app.use("/produtos", auth, produtosRoutes);
+app.use("/produtosCatalogo", produtosSercice);
 app.use("/clientes", auth, clientesRoutes);
 app.use("/fornecedores", auth, fornecedoresRoutes);
 app.use("/cidades", auth, cidadesRoutes);

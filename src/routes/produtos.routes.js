@@ -13,6 +13,7 @@ router.get(
   checkPermission("produto:ler"),
   ProdutosController.getProdutos
 );
+
 router.get(
   "/grupos/ativos",
   checkPermission("produto:ler"),

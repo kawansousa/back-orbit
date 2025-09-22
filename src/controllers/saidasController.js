@@ -304,8 +304,43 @@ exports.getSaidaById = async (req, res) => {
       return res.status(404).json({ error: "Saída não encontrada" });
     }
 
+    // Buscar estoque atual para cada item
+    const itensComEstoque = await Promise.all(
+      saida.itens.map(async (item) => {
+        try {
+          const produto = await Produto.findOne({
+            codigo_produto: item.codigo_produto,
+            codigo_loja,
+            codigo_empresa,
+          });
+
+          // Adicionar estoque atual ao item
+          return {
+            ...item.toObject(), // Converter para objeto plain se for documento Mongoose
+            estoque_atual: produto?.estoque?.[0]?.estoque || 0,
+          };
+        } catch (error) {
+          console.error(
+            `Erro ao buscar estoque do produto ${item.codigo_produto}:`,
+            error
+          );
+          // Retornar item original com estoque 0 em caso de erro
+          return {
+            ...item.toObject(),
+            estoque_atual: 0,
+          };
+        }
+      })
+    );
+
+    // Criar objeto de resposta com itens atualizados
+    const saidaComEstoque = {
+      ...saida.toObject(),
+      itens: itensComEstoque,
+    };
+
     res.status(200).json({
-      data: saida,
+      data: saidaComEstoque,
       message: "Saída encontrada com sucesso.",
     });
   } catch (error) {

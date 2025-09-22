@@ -8,7 +8,16 @@ const Cidade = require("../models/cidades.model");
 
 exports.getProdutos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit, searchTerm, searchType } = req.query;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      page,
+      limit,
+      searchTerm,
+      searchType,
+      grupo,
+      sort,
+    } = req.query;
 
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
@@ -16,15 +25,8 @@ exports.getProdutos = async (req, res) => {
       });
     }
 
-    const pageNumber = parseInt(page, 10);
-    const limitNumber = parseInt(limit, 10);
-
-    if (pageNumber < 1 || limitNumber < 1) {
-      return res
-        .status(400)
-        .json({ error: "Os valores de page e limit devem ser maiores que 0." });
-    }
-
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 10;
     const skip = (pageNumber - 1) * limitNumber;
 
     let filtros = {
@@ -32,22 +34,34 @@ exports.getProdutos = async (req, res) => {
       codigo_empresa,
     };
 
-    if (searchTerm && searchTerm.trim() !== '') {
+    if (grupo && grupo.trim() !== "") {
+      const grupoDoc = await Grupos.findOne({
+        descricao: { $regex: new RegExp(`^${grupo}$`, "i") },
+      });
+
+      if (grupoDoc) {
+        filtros.grupo = String(grupoDoc.codigo_grupo);
+      } else {
+        return res.status(200).json({
+          total: 0,
+          page: pageNumber,
+          totalPages: 0,
+          limit: limitNumber,
+          data: [],
+        });
+      }
+    }
+
+    if (searchTerm && searchTerm.trim() !== "") {
       const termoBusca = searchTerm.trim();
-      
       if (searchType === "todos") {
         const conditions = [];
-        
         conditions.push({ descricao: { $regex: termoBusca, $options: "i" } });
-        
         if (!isNaN(termoBusca)) {
           conditions.push({ codigo_produto: parseInt(termoBusca, 10) });
         }
-        
         conditions.push({ codigo_barras: String(termoBusca) });
-        
         conditions.push({ referencia: { $regex: termoBusca, $options: "i" } });
-        
         filtros.$or = conditions;
       } else {
         switch (searchType) {
@@ -65,35 +79,35 @@ exports.getProdutos = async (req, res) => {
           case "referencia":
             filtros[searchType] = { $regex: termoBusca, $options: "i" };
             break;
-          default:
-            return res.status(400).json({ 
-              error: "Tipo de busca inválido. Use: todos, codigo_produto, codigo_barras, descricao, ou referencia" 
-            });
         }
       }
     }
 
+    const sortOptions = {};
+    if (sort) {
+      if (sort.startsWith("-")) {
+        sortOptions[sort.substring(1)] = -1;
+      } else {
+        sortOptions[sort] = 1;
+      }
+    } else {
+      sortOptions["descricao"] = 1;
+    }
+
     const pipeline = [
       { $match: filtros },
+      { $sort: sortOptions },
       { $skip: skip },
       { $limit: limitNumber },
       {
         $addFields: {
-          grupo: {
-            $cond: {
-              if: {
-                $and: [{ $ne: ["$grupo", ""] }, { $ne: ["$grupo", null] }],
-              },
-              then: { $toInt: "$grupo" },
-              else: null,
-            },
-          },
+          grupoIdConvertido: { $toInt: "$grupo" },
         },
       },
       {
         $lookup: {
           from: "grupos",
-          localField: "grupo",
+          localField: "grupoIdConvertido",
           foreignField: "codigo_grupo",
           as: "grupoInfo",
         },
@@ -104,23 +118,16 @@ exports.getProdutos = async (req, res) => {
             $cond: {
               if: { $gt: [{ $size: "$grupoInfo" }, 0] },
               then: { $arrayElemAt: ["$grupoInfo.descricao", 0] },
-              else: "",
+              else: "Sem grupo",
             },
           },
         },
       },
-      { $unset: ["grupoInfo"] },
+      { $unset: ["grupoInfo", "grupoIdConvertido"] },
     ];
 
     const produtos = await Produto.aggregate(pipeline);
-
     const totalProdutos = await Produto.countDocuments(filtros);
-
-    if (produtos.length === 0) {
-      return res.status(404).json({
-        message: "Nenhum produto encontrado para os filtros fornecidos.",
-      });
-    }
 
     res.status(200).json({
       total: totalProdutos,
@@ -130,7 +137,7 @@ exports.getProdutos = async (req, res) => {
       data: produtos,
     });
   } catch (error) {
-    console.error('Erro na busca de produtos:', error);
+    console.error("Erro na busca de produtos:", error);
     res.status(500).json({ error: error.message });
   }
 };

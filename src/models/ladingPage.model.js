@@ -9,6 +9,17 @@ const LandingPageSchema = new mongoose.Schema({
     type: String,
     require: true,
   },
+  banner: [{
+    image: {
+      type: String,
+    },
+    titulo: {
+      String,
+    },
+    descricao: {
+      type: String,
+    }
+  }],
   numero_whatsapp: {
     type: Number,
     require: true,
@@ -54,6 +65,9 @@ const LandingPageSchema = new mongoose.Schema({
     type: String,
   },
   facebook: {
+    type: String,
+  },
+  localizacao: {
     type: String,
   }
 });

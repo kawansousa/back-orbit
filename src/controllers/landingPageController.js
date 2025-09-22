@@ -4,6 +4,7 @@ exports.createLadingPage = async (req, res) => {
   const {
     codigo_loja,
     codigo_empresa,
+    banner,
     numero_whatsapp,
     numero_telefone,
     horario_funcionamento,
@@ -11,12 +12,14 @@ exports.createLadingPage = async (req, res) => {
     endereco,
     instagram,
     facebook,
+    localizacao,
   } = req.body;
 
   try {
     const newLandingPage = new LandingPage({
       codigo_loja,
       codigo_empresa,
+      banner,
       numero_whatsapp,
       numero_telefone,
       horario_funcionamento,
@@ -24,6 +27,7 @@ exports.createLadingPage = async (req, res) => {
       endereco,
       instagram,
       facebook,
+      localizacao,
     });
     await newLandingPage.save();
 

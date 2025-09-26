@@ -7,28 +7,49 @@ const LandingPageSchema = new mongoose.Schema({
   },
   codigo_empresa: {
     type: String,
-    require: true,
+    required: true,
   },
-  banner: [{
-    image: {
-      type: String,
-    },
-    titulo: {
-      String,
-    },
-    descricao: {
-      type: String,
-    }
-  }],
-  numero_whatsapp: {
+  company_name: {
+    type: String,
+    required: true,
+  },
+  url: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  slogan: {
+    type: String,
+    required: true,
+  },
+  about: {
+    type: String,
+    required: true,
+  },
+  phone: {
     type: Number,
-    require: true,
+    required: true,
   },
-  numero_telefone: {
+  whatsapp: {
     type: Number,
-    require: true,
+    required: true,
   },
-  horario_funcionamento: [
+  email: {
+    type: String,
+    required: true,
+  },
+  hero_title: {
+    type: String,
+    required: true,
+  },
+  features: [
+    {
+      icon: { type: String },
+      title: { type: String },
+      description: { type: String },
+    },
+  ],
+  working_hours: [
     {
       dia_semana: {
         type: Number,
@@ -36,23 +57,19 @@ const LandingPageSchema = new mongoose.Schema({
         min: 0,
         max: 6,
       },
-      aberto: {
+      open: {
         type: Boolean,
         default: true,
       },
-      intervalos: [
+      intervals: [
         {
-          abre: { type: String, required: true },
-          fecha: { type: String, required: true },
+          open: { type: String, required: true },
+          closes: { type: String, required: true },
         },
       ],
     },
   ],
-  mensagem_footer: {
-    type: String,
-    require: true,
-  },
-  endereco: {
+  address: {
     logradouro: { type: String, required: true },
     numero: { type: String, required: true },
     complemento: { type: String },
@@ -61,15 +78,19 @@ const LandingPageSchema = new mongoose.Schema({
     estado: { type: String, required: true },
     cep: { type: String, required: true },
   },
-  instagram: {
+  social: [
+    {
+      instagram: {
+        type: String,
+      },
+      facebook: {
+        type: String,
+      },
+    },
+  ],
+  location: {
     type: String,
   },
-  facebook: {
-    type: String,
-  },
-  localizacao: {
-    type: String,
-  }
 });
 
 const LandingPage = mongoose.model("LandingPage", LandingPageSchema);

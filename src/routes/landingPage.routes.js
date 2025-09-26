@@ -4,12 +4,21 @@ const LandingPageController = require("../controllers/landingPageController")
 
 router.get(
   "/",
-  LandingPageController.getLandingPage
+  LandingPageController.getLandingPageByUrl
+)
+router.get(
+  "/existing",
+  LandingPageController.getLandingPageByEnterprise
 )
 
 router.post(
   "/",
   LandingPageController.createLadingPage
+)
+
+router.patch(
+  "/:id",
+  LandingPageController.updateLandingPage
 )
 
 module.exports = router

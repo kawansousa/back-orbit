@@ -239,7 +239,7 @@
                     </p>
                 </div>
 
-                <% if (os.parcelas && os.parcelas.length > 0) { %>
+                <% if (os.parcelas && os.parcelas.length> 0) { %>
                     <div class="payment-info">
                         <h3>Parcelas</h3>
                         <table class="parcelas">
@@ -250,23 +250,28 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <% os.parcelas.forEach(parcela => { %>
+                                <% os.parcelas.forEach(parcela=> { %>
                                     <tr>
-                                        <td>R$ <%= parcela.valor_total.toFixed(2) %></td>
-                                        <td><%= new Date(parcela.data_vencimento).toLocaleDateString('pt-BR') %></td>
+                                        <td>R$ <%= parcela.valor_total.toFixed(2) %>
+                                        </td>
+                                        <td>
+                                            <%= new Date(parcela.data_vencimento).toLocaleDateString('pt-BR') %>
+                                        </td>
                                     </tr>
-                                <% }); %>
+                                    <% }); %>
                             </tbody>
                         </table>
                     </div>
-                <% } %>
+                    <% } %>
             </div>
             <% if (os.observacaoGeral) { %>
                 <div class="payment-info">
                     <h3>Observações</h3>
-                    <p><%= os.observacaoGeral %></p>
+                    <p>
+                        <%= os.observacaoGeral %>
+                    </p>
                 </div>
-            <% } %>
+                <% } %>
         </div>
 </body>
 

@@ -17,7 +17,7 @@ exports.listaMecanicos = async (req, res) => {
 
     if (pageNumber < 1 || limitNumber < 1) {
       return res.status(400).json({
-        error: "Os valores de page e limit devem ser maiores que 0.",
+        error: "Os valores de page e limit devem ser maiores qu'e 0.",
       });
     }
 

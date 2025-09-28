@@ -14,7 +14,7 @@ const ContasBancarias = require("../models/contas_bancarias.model");
 const atualizarSaldoCaixa = (
   caixa,
   formasPagamento,
-  operacao = "adicionar"
+  operacao = "adicionar",
 ) => {
   let totalDinheiro = 0;
 
@@ -181,7 +181,7 @@ exports.listaOs = async (req, res) => {
     aggregatePipeline.push(
       { $sort: { dataAbertura: -1 } },
       { $skip: skip },
-      { $limit: limitNumber }
+      { $limit: limitNumber },
     );
 
     const lista = await Os.aggregate(aggregatePipeline);
@@ -246,7 +246,7 @@ exports.createOs = async (req, res) => {
 
     if (!codigo_loja || !codigo_empresa || !codigo_os) {
       throw new Error(
-        "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios."
+        "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
       );
     }
 
@@ -264,7 +264,7 @@ exports.createOs = async (req, res) => {
 
       if (!caixa) {
         throw new Error(
-          "O caixa precisa estar aberto para faturar a ordem de serviço."
+          "O caixa precisa estar aberto para faturar a ordem de serviço.",
         );
       }
     }
@@ -306,7 +306,7 @@ exports.createOs = async (req, res) => {
       const totalDinheiroAdicionado = atualizarSaldoCaixa(
         caixa,
         forma_pagamento,
-        "adicionar"
+        "adicionar",
       );
 
       const movimentacoes = forma_pagamento.map((pagamento) => {
@@ -371,7 +371,7 @@ exports.createOs = async (req, res) => {
 
           if (!contaBancaria) {
             throw new Error(
-              `Conta Bancaria não encontrada: ${transferencia.codigo_conta_bancaria}`
+              `Conta Bancaria não encontrada: ${transferencia.codigo_conta_bancaria}`,
             );
           }
 
@@ -401,7 +401,7 @@ exports.createOs = async (req, res) => {
 
           if (!codigo_receber) {
             throw new Error(
-              `Código receber não foi gerado para a parcela ${i + 1}`
+              `Código receber não foi gerado para a parcela ${i + 1}`,
             );
           }
 
@@ -442,7 +442,7 @@ exports.createOs = async (req, res) => {
           if (configuracaoEstoque === "SIM") {
             if (produto.estoque[0].estoque < item.quantidade) {
               throw new Error(
-                `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`
+                `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`,
               );
             }
             produto.estoque[0].estoque -= item.quantidade;
@@ -594,7 +594,7 @@ exports.updateOs = async (req, res) => {
 
     if (!codigo_loja || !codigo_empresa) {
       throw new Error(
-        "Os campos codigo_loja e codigo_empresa são obrigatórios."
+        "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       );
     }
 
@@ -618,7 +618,7 @@ exports.updateOs = async (req, res) => {
 
       if (!caixaAberto) {
         throw new Error(
-          "O caixa precisa estar aberto para faturar a ordem de serviço."
+          "O caixa precisa estar aberto para faturar a ordem de serviço.",
         );
       }
     } else {
@@ -651,7 +651,7 @@ exports.updateOs = async (req, res) => {
     const totalDinheiroRevertido = atualizarSaldoCaixa(
       caixaAberto,
       formasPagamentoAntigas,
-      "subtrair"
+      "subtrair",
     );
 
     if (osExistente.status === "faturado") {
@@ -668,7 +668,7 @@ exports.updateOs = async (req, res) => {
 
       if (caixaAberto) {
         movimentacaoCorreta = todasMovimentacoes.find(
-          (mov) => mov.caixaId.toString() === caixaAberto._id.toString()
+          (mov) => mov.caixaId.toString() === caixaAberto._id.toString(),
         );
 
         if (!movimentacaoCorreta) {
@@ -681,7 +681,7 @@ exports.updateOs = async (req, res) => {
 
             if (!saoIguais) {
               throw new Error(
-                `Alteração só é permitida no mesmo caixa. OS foi faturada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`
+                `Alteração só é permitida no mesmo caixa. OS foi faturada no Caixa ${primeiraMovimentacao.codigo_caixa}, mas o caixa atual é ${caixaAberto.codigo_caixa}.`,
               );
             }
           }
@@ -792,7 +792,7 @@ exports.updateOs = async (req, res) => {
         if (configuracaoEstoque === "SIM") {
           if (produto.estoque[0].estoque < item.quantidade) {
             throw new Error(
-              `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`
+              `Estoque insuficiente para o produto ${produto.descricao}. Estoque atual: ${produto.estoque[0].estoque}, Quantidade solicitada: ${item.quantidade}`,
             );
           }
           produto.estoque[0].estoque -= item.quantidade;
@@ -809,7 +809,7 @@ exports.updateOs = async (req, res) => {
         const totalDinheiroAdicionado = atualizarSaldoCaixa(
           caixaAberto,
           forma_pagamento,
-          "adicionar"
+          "adicionar",
         );
 
         forma_pagamento.forEach((pagamento) => {
@@ -848,7 +848,7 @@ exports.updateOs = async (req, res) => {
 
           if (!contaBancaria) {
             throw new Error(
-              `Conta bancaria não encontrada: ${transferencia.codigo_conta_bancaria}`
+              `Conta bancaria não encontrada: ${transferencia.codigo_conta_bancaria}`,
             );
           }
 
@@ -905,7 +905,7 @@ exports.updateOs = async (req, res) => {
 
           if (!parcela.codigo_receber) {
             throw new Error(
-              `Código receber não foi gerado para a parcela ${i + 1}`
+              `Código receber não foi gerado para a parcela ${i + 1}`,
             );
           }
 
@@ -1045,7 +1045,7 @@ exports.cancelarOs = async (req, res) => {
 
     if (!codigo_loja || !codigo_empresa || !codigo_os) {
       throw new Error(
-        "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios."
+        "Os campos codigo_loja, codigo_empresa e codigo_os são obrigatórios.",
       );
     }
 
@@ -1057,7 +1057,7 @@ exports.cancelarOs = async (req, res) => {
 
     if (!os) {
       throw new Error(
-        "A ordem de serviço não foi encontrada nessa loja e empresa."
+        "A ordem de serviço não foi encontrada nessa loja e empresa.",
       );
     }
 
@@ -1073,7 +1073,7 @@ exports.cancelarOs = async (req, res) => {
 
     if (!caixaAtual) {
       throw new Error(
-        "Nenhum caixa aberto encontrado para realizar o cancelamento."
+        "Nenhum caixa aberto encontrado para realizar o cancelamento.",
       );
     }
 
@@ -1111,7 +1111,7 @@ exports.cancelarOs = async (req, res) => {
     if (totalDinheiro > 0) {
       if (caixaAtual.saldo_final < totalDinheiro) {
         throw new Error(
-          `Saldo insuficiente no caixa para estornar. Saldo atual: ${caixaAtual.saldo_final}, Valor a estornar: ${totalDinheiro}`
+          `Saldo insuficiente no caixa para estornar. Saldo atual: ${caixaAtual.saldo_final}, Valor a estornar: ${totalDinheiro}`,
         );
       }
     }
@@ -1120,7 +1120,7 @@ exports.cancelarOs = async (req, res) => {
       const saldoAtual = contaBancariaPadrao.saldo || 0;
       if (saldoAtual < totalPix) {
         throw new Error(
-          `Saldo insuficiente na conta bancária para estornar PIX. Saldo atual: ${saldoAtual}, Valor a estornar: ${totalPix}`
+          `Saldo insuficiente na conta bancária para estornar PIX. Saldo atual: ${saldoAtual}, Valor a estornar: ${totalPix}`,
         );
       }
     }
@@ -1136,7 +1136,7 @@ exports.cancelarOs = async (req, res) => {
 
         if (!contaBancaria) {
           console.warn(
-            `Conta bancaria não encontrada para estorno: ${transferencia.codigo_conta_bancaria}`
+            `Conta bancaria não encontrada para estorno: ${transferencia.codigo_conta_bancaria}`,
           );
           continue;
         }
@@ -1144,7 +1144,7 @@ exports.cancelarOs = async (req, res) => {
         const saldoAtual = contaBancaria.saldo || 0;
         if (saldoAtual < transferencia.valor) {
           throw new Error(
-            `Saldo Insuficiente na conta ${contaBancaria.conta_bancaria}`
+            `Saldo Insuficiente na conta ${contaBancaria.conta_bancaria}`,
           );
         }
 
@@ -1194,7 +1194,7 @@ exports.cancelarOs = async (req, res) => {
           data_cancelamento: new Date(),
           observacao_cancelamento: "OS cancelada",
         },
-        { session }
+        { session },
       );
     }
 
@@ -1292,7 +1292,7 @@ exports.cancelarOs = async (req, res) => {
           codigo_conta_bancaria: conta.codigo_conta_bancaria,
           conta_bancaria: conta.conta_bancaria,
           saldoAtualizado: conta.saldo,
-        })
+        }),
       );
     }
 
@@ -1337,15 +1337,17 @@ exports.generateOsPDF = async (req, res) => {
       codigo_empresa,
     }).populate("cliente", "nome cpf");
 
+    console.log(os);
+
     if (!os) {
-      console.error("Venda não encontrada");
+      console.error("Ordem de serviço não encontrada");
       return res.status(404).json({
-        error: "Venda não encontrada.",
+        error: "Ordem de serviço não encontrada.",
       });
     }
 
     const empresa = loja.empresas.find(
-      (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
+      (emp) => emp.codigo_empresa === parseInt(codigo_empresa),
     );
     const logo = empresa ? empresa.logo : null;
     const rodape = empresa ? empresa.rodape : null;
@@ -1378,7 +1380,10 @@ exports.generateOsPDF = async (req, res) => {
 
     await browser.close();
 
-    res.setHeader("Content-Disposition", "attachment; filename=venda.pdf");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=Ordem de serviço.pdf",
+    );
     res.end(pdfBuffer);
   } catch (error) {
     console.error("Erro ao gerar PDF:", error);

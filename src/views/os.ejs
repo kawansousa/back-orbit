@@ -24,11 +24,8 @@
         .page {
             background-color: white;
             width: 210mm;
-            /* A4 width */
             min-height: 297mm;
-            /* A4 height */
             margin: 0 auto;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             display: flex;
             flex-direction: column;
         }
@@ -117,19 +114,6 @@
 
         .status-cancelado {
             color: red;
-        }
-
-        .footer {
-            position: fixed;
-            bottom: 0px;
-            width: 100%;
-            text-align: center;
-        }
-
-        .footer img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
         }
     </style>
 </head>
@@ -255,7 +239,7 @@
                     </p>
                 </div>
 
-                <% if (os.parcelas && os.parcelas.length> 0) { %>
+                <% if (os.parcelas && os.parcelas.length > 0) { %>
                     <div class="payment-info">
                         <h3>Parcelas</h3>
                         <table class="parcelas">
@@ -266,33 +250,23 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <% os.parcelas.forEach(parcela=> { %>
+                                <% os.parcelas.forEach(parcela => { %>
                                     <tr>
-                                        <td>R$ <%= parcela.valor_total.toFixed(2) %>
-                                        </td>
-                                        <td>
-                                            <%= new Date(parcela.data_vencimento).toLocaleDateString('pt-BR') %>
-                                        </td>
+                                        <td>R$ <%= parcela.valor_total.toFixed(2) %></td>
+                                        <td><%= new Date(parcela.data_vencimento).toLocaleDateString('pt-BR') %></td>
                                     </tr>
-                                    <% }); %>
+                                <% }); %>
                             </tbody>
                         </table>
                     </div>
-                    <% } %>
-
-                        <% if (os.observacoes) { %>
-                            <div class="payment-info">
-                                <h3>Observações</h3>
-                                <p>
-                                    <%= os.observacoes %>
-                                </p>
-                            </div>
-                            <% } %>
+                <% } %>
             </div>
-
-            <div class="footer">
-                <img src="<%= rodape %>" alt="Rodapé">
-            </div>
+            <% if (os.observacaoGeral) { %>
+                <div class="payment-info">
+                    <h3>Observações</h3>
+                    <p><%= os.observacaoGeral %></p>
+                </div>
+            <% } %>
         </div>
 </body>
 

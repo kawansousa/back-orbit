@@ -91,6 +91,10 @@ const LandingPageSchema = new mongoose.Schema({
   location: {
     type: String,
   },
+  price: {
+    type: Boolean,
+    required: true
+  }
 });
 
 const LandingPage = mongoose.model("LandingPage", LandingPageSchema);

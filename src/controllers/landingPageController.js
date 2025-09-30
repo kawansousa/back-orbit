@@ -17,6 +17,7 @@ exports.createLadingPage = async (req, res) => {
     address,
     social,
     location,
+    price,
   } = req.body;
 
   const filtro = { codigo_loja, codigo_empresa };
@@ -115,6 +116,12 @@ exports.createLadingPage = async (req, res) => {
       error: "O campo location é obrigatório.",
     });
   }
+  if (!price) {
+    console.error("Faltando price");
+    return res.status(400).json({
+      error: "O campo price é obrigatório.",
+    });
+  }
 
   try {
     const newLandingPage = new LandingPage({
@@ -133,6 +140,7 @@ exports.createLadingPage = async (req, res) => {
       address,
       social,
       location,
+      price,
     });
     await newLandingPage.save();
 

@@ -1,4 +1,3 @@
-// controllers/produtos.controller.js
 const Produto = require("../models/produtos.model");
 const Grupos = require("../models/grupos.model");
 const XLSX = require("xlsx");
@@ -19,7 +18,6 @@ exports.getProdutos = async (req, res) => {
       sort,
     } = req.query;
 
-    // Validação de campos obrigatórios
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
@@ -30,15 +28,12 @@ exports.getProdutos = async (req, res) => {
     const limitNumber = parseInt(limit, 10);
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Construção de filtros iniciais
     const filtros = { codigo_loja, codigo_empresa };
 
-    // Filtro por grupo (agora grupo é a descrição)
     if (grupo && grupo.trim() !== "") {
       filtros.grupo = grupo.trim();
     }
 
-    // Filtro por busca
     if (searchTerm && searchTerm.trim() !== "") {
       const termo = searchTerm.trim();
       if (searchType === "todos") {
@@ -66,7 +61,6 @@ exports.getProdutos = async (req, res) => {
       }
     }
 
-    // Configuração de ordenação
     const sortOptions = {};
     if (sort) {
       sortOptions[sort.startsWith("-") ? sort.substring(1) : sort] =
@@ -75,7 +69,6 @@ exports.getProdutos = async (req, res) => {
       sortOptions.descricao = 1;
     }
 
-    // Pipeline de agregação simplificado
     const pipeline = [
       { $match: filtros },
       { $sort: sortOptions },

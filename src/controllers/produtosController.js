@@ -11,89 +11,71 @@ exports.getProdutos = async (req, res) => {
     const {
       codigo_loja,
       codigo_empresa,
-      page,
-      limit,
+      page = 1,
+      limit = 10,
       searchTerm,
       searchType,
       grupo,
       sort,
     } = req.query;
 
+    // Validação de campos obrigatórios
     if (!codigo_loja || !codigo_empresa) {
       return res.status(400).json({
         error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
       });
     }
 
-    const pageNumber = parseInt(page, 10) || 1;
-    const limitNumber = parseInt(limit, 10) || 10;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
     const skip = (pageNumber - 1) * limitNumber;
 
-    let filtros = {
-      codigo_loja,
-      codigo_empresa,
-    };
+    // Construção de filtros iniciais
+    const filtros = { codigo_loja, codigo_empresa };
 
+    // Filtro por grupo (agora grupo é a descrição)
     if (grupo && grupo.trim() !== "") {
-      const grupoDoc = await Grupos.findOne({
-        descricao: { $regex: new RegExp(`^${grupo}$`, "i") },
-      });
-
-      if (grupoDoc) {
-        filtros.grupo = String(grupoDoc.codigo_grupo);
-      } else {
-        return res.status(200).json({
-          total: 0,
-          page: pageNumber,
-          totalPages: 0,
-          limit: limitNumber,
-          data: [],
-        });
-      }
+      filtros.grupo = grupo.trim();
     }
 
+    // Filtro por busca
     if (searchTerm && searchTerm.trim() !== "") {
-      const termoBusca = searchTerm.trim();
+      const termo = searchTerm.trim();
       if (searchType === "todos") {
-        const conditions = [];
-        conditions.push({ descricao: { $regex: termoBusca, $options: "i" } });
-        if (!isNaN(termoBusca)) {
-          conditions.push({ codigo_produto: parseInt(termoBusca, 10) });
-        }
-        conditions.push({ codigo_barras: String(termoBusca) });
-        conditions.push({ referencia: { $regex: termoBusca, $options: "i" } });
+        const conditions = [
+          { descricao: { $regex: termo, $options: "i" } },
+          { referencia: { $regex: termo, $options: "i" } },
+          { codigo_barras: termo },
+        ];
+        if (!isNaN(termo))
+          conditions.push({ codigo_produto: parseInt(termo, 10) });
         filtros.$or = conditions;
       } else {
         switch (searchType) {
           case "codigo_produto":
-            if (!isNaN(termoBusca)) {
-              filtros[searchType] = parseInt(termoBusca, 10);
-            } else {
-              filtros[searchType] = -1;
-            }
+            filtros[searchType] = isNaN(termo) ? -1 : parseInt(termo, 10);
             break;
           case "codigo_barras":
-            filtros[searchType] = String(termoBusca);
+            filtros[searchType] = termo;
             break;
           case "descricao":
           case "referencia":
-            filtros[searchType] = { $regex: termoBusca, $options: "i" };
+            filtros[searchType] = { $regex: termo, $options: "i" };
             break;
         }
       }
     }
 
+    // Configuração de ordenação
     const sortOptions = {};
     if (sort) {
-      if (sort.startsWith("-")) {
-        sortOptions[sort.substring(1)] = -1;
-      } else {
-        sortOptions[sort] = 1;
-      }
+      sortOptions[sort.startsWith("-") ? sort.substring(1) : sort] =
+        sort.startsWith("-") ? -1 : 1;
     } else {
-      sortOptions["descricao"] = 1;
+      sortOptions.descricao = 1;
     }
 
+    // Pipeline de agregação simplificado
     const pipeline = [
       { $match: filtros },
       { $sort: sortOptions },
@@ -101,35 +83,15 @@ exports.getProdutos = async (req, res) => {
       { $limit: limitNumber },
       {
         $addFields: {
-          grupoIdConvertido: { $toInt: "$grupo" },
+          grupo: { $ifNull: ["$grupo", "Sem grupo"] },
         },
       },
-      {
-        $lookup: {
-          from: "grupos",
-          localField: "grupoIdConvertido",
-          foreignField: "codigo_grupo",
-          as: "grupoInfo",
-        },
-      },
-      {
-        $addFields: {
-          grupo: {
-            $cond: {
-              if: { $gt: [{ $size: "$grupoInfo" }, 0] },
-              then: { $arrayElemAt: ["$grupoInfo.descricao", 0] },
-              else: "Sem grupo",
-            },
-          },
-        },
-      },
-      { $unset: ["grupoInfo", "grupoIdConvertido"] },
     ];
 
     const produtos = await Produto.aggregate(pipeline);
     const totalProdutos = await Produto.countDocuments(filtros);
 
-    res.status(200).json({
+    return res.status(200).json({
       total: totalProdutos,
       page: pageNumber,
       limit: limitNumber,
@@ -138,7 +100,7 @@ exports.getProdutos = async (req, res) => {
     });
   } catch (error) {
     console.error("Erro na busca de produtos:", error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -153,7 +115,6 @@ exports.createProduto = async (req, res) => {
       descricao,
       status,
       grupo,
-      grupo_id,
       subgrupo,
       referencia,
       localizacao,
@@ -215,7 +176,6 @@ exports.createProduto = async (req, res) => {
       descricao,
       status,
       grupo,
-      grupo_id,
       subgrupo,
       volume,
       referencia,

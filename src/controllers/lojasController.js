@@ -280,6 +280,7 @@ exports.createLoja = async (req, res) => {
         codigo_loja: novaLoja.codigo_loja,
         codigo_empresa: empresa.codigo_empresa,
         caixa: 1,
+        codigo_caixa: 0,
         responsavel_abertura: novaLoja.responsavel,
         status: "fechado",
       });

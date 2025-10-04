@@ -83,26 +83,98 @@ exports.createUser = async (req, res) => {
 };
 
 exports.getUsers = async (req, res) => {
-  const { codigo_empresas, codigo_loja } = req.query;
   try {
+    const {
+      codigo_empresas,
+      codigo_loja,
+      page = 1,
+      limit = 10,
+      searchTerm,
+      searchType,
+      sort,
+    } = req.query;
+
     if (!codigo_empresas || !codigo_loja) {
       return res
         .status(400)
-        .json({ error: "Código de empresa e loja são obrigatórios" });
+        .json({ error: "Código de empresa e loja são obrigatórios." });
     }
-    const users = await User.find({
+
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const filtros = {
       acesso_loja: {
         $elemMatch: {
           codigo_loja: codigo_loja,
           "codigo_empresas.codigo": codigo_empresas,
         },
       },
-    }).populate("role", "name");
-    res.status(200).json(users);
+    };
+
+    if (searchTerm && searchTerm.trim() !== "") {
+      const termo = searchTerm.trim();
+
+      if (searchType === "todos") {
+        filtros.$or = [
+          { nome: { $regex: termo, $options: "i" } },
+          { email: { $regex: termo, $options: "i" } },
+          { usuario: { $regex: termo, $options: "i" } },
+          { "role.name": { $regex: termo, $options: "i" } },
+        ];
+      } else {
+        switch (searchType) {
+          case "nome":
+          case "email":
+          case "usuario":
+            filtros[searchType] = { $regex: termo, $options: "i" };
+            break;
+          case "role":
+            filtros["role.name"] = { $regex: termo, $options: "i" };
+            break;
+        }
+      }
+    }
+
+    const sortOptions = {};
+    if (sort) {
+      sortOptions[sort.startsWith("-") ? sort.substring(1) : sort] =
+        sort.startsWith("-") ? -1 : 1;
+    } else {
+      sortOptions.nome = 1;
+    }
+
+    const users = await User.find(filtros)
+      .populate("role", "name")
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limitNumber);
+
+    const total = await User.countDocuments(filtros);
+
+    if (!users || users.length === 0) {
+      return res.status(404).json({
+        message: "Nenhum usuário encontrado para os filtros fornecidos.",
+        total: 0,
+        totalPages: 0,
+        data: [],
+      });
+    }
+
+    return res.status(200).json({
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      data: users,
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Erro na busca de usuários:", error);
+    return res.status(500).json({ error: error.message });
   }
 };
+
 
 exports.getUserById = async (req, res) => {
   try {

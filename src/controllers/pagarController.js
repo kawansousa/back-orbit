@@ -384,8 +384,6 @@ exports.liquidarPagar = async (req, res) => {
       dados_transferencia,
     } = req.body;
 
-    console.log(req.body)
-
     if (!codigo_loja || !codigo_empresa || !codigo_pagar || !forma_pagamento) {
       await session.abortTransaction();
       return res.status(400).json({ error: "Campos obrigatórios faltando." });

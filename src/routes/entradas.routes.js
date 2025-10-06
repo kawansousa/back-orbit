@@ -6,6 +6,7 @@ const auth = require("../middlewares/auth");
 const checkPermission = require("../middlewares/checkPermission");
 const ProdutosController = require("../controllers/produtosController");
 const fornecedoresController = require("../controllers/fornecedorController");
+const autoIncrementMovimento = require("../middlewares/autoIncrementMovimento")
 
 router.use(auth);
 
@@ -33,6 +34,7 @@ router.post(
   "/",
   checkPermission("entrada:criar"),
   autoIncrementEntradas,
+  autoIncrementMovimento,
   entradasController.createEntrada
 );
 

@@ -51,6 +51,7 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
       "os",
       "receber",
       "pagar",
+      "entrada",
       "cancelamento_venda",
       "cancelamento_os",
       "producao",

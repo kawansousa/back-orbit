@@ -1,7 +1,7 @@
 const Entrada = require('../models/entradas.model');
 
 async function autoIncrementEntrada(req, res, next) {
-  try {
+  try { 
     if (req.method !== 'POST') {
       return next();
     }

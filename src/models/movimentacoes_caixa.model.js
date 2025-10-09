@@ -51,6 +51,7 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
       "os",
       "receber",
       "pagar",
+      "entrada",
       "cancelamento_venda",
       "cancelamento_os",
       "producao",
@@ -59,6 +60,7 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
       "devolucao_cliente",
       "devolucao_fornecedor",
       "caixa_manual",
+      "banco_manual"
     ],
   },
   documento_origem: {

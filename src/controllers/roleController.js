@@ -27,7 +27,7 @@ exports.createRole = async (req, res) => {
       permissions,
       codigo_loja,
       codigo_empresa,
-      status: "ativo"
+      status: "ativo",
     });
     await newRole.save();
     res
@@ -40,16 +40,84 @@ exports.createRole = async (req, res) => {
 
 exports.getRoles = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa } = req.query;
+    const {
+      codigo_loja,
+      codigo_empresa,
+      page = 1,
+      limit = 10,
+      searchTerm,
+      searchType,
+      sort,
+    } = req.query;
+
     if (!codigo_loja || !codigo_empresa) {
-      return res
-        .status(400)
-        .json({ message: "Código da loja e da empresa são obrigatórios." });
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
     }
-    const roles = await Role.find({ codigo_loja, codigo_empresa });
-    res.status(200).json(roles);
+
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const filtros = { codigo_loja, codigo_empresa };
+
+    if (searchTerm && searchTerm.trim() !== "") {
+      const termo = searchTerm.trim();
+
+      if (searchType === "todos") {
+        filtros.$or = [
+          { name: { $regex: termo, $options: "i" } },
+          { description: { $regex: termo, $options: "i" } },
+          { permissions: { $regex: termo, $options: "i" } },
+        ];
+      } else {
+        switch (searchType) {
+          case "name":
+          case "description":
+            filtros[searchType] = { $regex: termo, $options: "i" };
+            break;
+          case "permissions":
+            filtros.permissions = { $regex: termo, $options: "i" };
+            break;
+        }
+      }
+    }
+
+    const sortOptions = {};
+    if (sort) {
+      sortOptions[sort.startsWith("-") ? sort.substring(1) : sort] =
+        sort.startsWith("-") ? -1 : 1;
+    } else {
+      sortOptions.name = 1;
+    }
+
+    const roles = await Role.find(filtros)
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limitNumber);
+
+    const total = await Role.countDocuments(filtros);
+
+    if (!roles || roles.length === 0) {
+      return res.status(404).json({
+        message: "Nenhuma função encontrada para os filtros fornecidos.",
+        total: 0,
+        totalPages: 0,
+        data: [],
+      });
+    }
+
+    return res.status(200).json({
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages: Math.ceil(total / limitNumber),
+      data: roles,
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Erro na busca de roles:", error);
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -119,9 +187,10 @@ exports.deleteRole = async (req, res) => {
 
     const requester = await User.findById(requesterId);
     if (requester && requester.role.toString() === _id) {
-        return res.status(403).json({
-            error: "Ação não permitida. Você não pode desativar sua própria função.",
-        });
+      return res.status(403).json({
+        error:
+          "Ação não permitida. Você não pode desativar sua própria função.",
+      });
     }
 
     const deletedRole = await Role.findByIdAndUpdate(

@@ -12,6 +12,20 @@ const parcelasSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const dadosTransferenciaSchema = new mongoose.Schema({
+  codigo_conta_bancaria: {
+    type: Number,
+  },
+  conta_bancaria: {
+    type: String,
+  },
+  agencia : {
+    type: Number, 
+  },
+  conta: {
+    type: Number,
+  }
+})
 
 const pagamentoSchema = new mongoose.Schema({
   meio_pagamento: {
@@ -26,6 +40,7 @@ const pagamentoSchema = new mongoose.Schema({
       "aprazo",
     ],
   },
+  dados_transferencia: dadosTransferenciaSchema,
   valor_pagamento: {
     type: Number,
   },

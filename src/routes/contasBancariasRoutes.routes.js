@@ -14,15 +14,20 @@ router.get(
   contasBancariasController.listarContasBancarias
 );
 router.get(
+  "/saldoTotal",
+  checkPermission("conta_bancaria:ler"),
+  contasBancariasController.saldoTotalContasBancarias
+)
+router.get(
   "/movimentacaoBanco",
   checkPermission("conta_bancaria:ler"),
   contasBancariasController.listaMovimentacaoContaBancaria
 );
 router.get(
-  "/:id",
-  checkPermission("conta_bancaria:ler"),
-  contasBancariasController.listarContaBancaria
-);
+  "/conta-padrao",
+  checkPermission("ler"),
+  contasBancariasController.obterContaPadrao
+)
 
 router.post(
   "/",
@@ -31,12 +36,17 @@ router.post(
   contasBancariasController.adicionarContaBancaria
 );
 router.post(
-  "/registraMovimentacaoBanco",
+  "/movimentacao-bancaria",
   checkPermission("conta_bancaria:movimentar"),
   autoIncrementMovimentoBanco,
-  contasBancariasController.registrarMovimentacaoBanco
-);
+  contasBancariasController.criarMovimentacaoBancaria
+)
 
+router.put(
+  "/definir-padrao",
+  checkPermission("atualizar"),
+  contasBancariasController.definirContaPadrao
+)
 router.put(
   "/:id",
   checkPermission("conta_bancaria:atualizar"),
@@ -44,9 +54,9 @@ router.put(
 );
 
 router.delete(
-  "/:id",
-  checkPermission("conta_bancaria:deletar"),
-  contasBancariasController.excluirContaBancaria
-);
+  "/remover-padrao",
+  checkPermission("deletar"),
+  contasBancariasController.removerContaPadrao
+)
 
 module.exports = router;

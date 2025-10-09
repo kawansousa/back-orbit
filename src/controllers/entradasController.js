@@ -2,11 +2,15 @@ const mongoose = require("mongoose");
 const Entrada = require("../models/entradas.model");
 const Produto = require("../models/produtos.model");
 const Pagar = require("../models/pagar.model");
-const Fornecedor = require("../models/fornecedores.model")
+const Fornecedor = require("../models/fornecedores.model");
+const ContaBancaria = require("../models/contas_bancarias.model");
+const Caixa = require("../models/caixa.model");
+const MovimentacaoCaixa = require("../models/movimentacoes_caixa.model");
 
 exports.createEntrada = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
+
   try {
     const {
       codigo_loja,
@@ -19,6 +23,7 @@ exports.createEntrada = async (req, res) => {
       fornecedor,
       itens,
       encargos,
+      codigo_movimento,
     } = req.body;
 
     if (
@@ -33,14 +38,43 @@ exports.createEntrada = async (req, res) => {
       throw new Error("Campos obrigatórios ausentes.");
     }
 
+    if (!Array.isArray(itens) || itens.length === 0) {
+      throw new Error("É necessário informar ao menos um item.");
+    }
+
     if (!Array.isArray(forma_pagamento) || forma_pagamento.length === 0) {
       throw new Error("forma_pagamento deve ser um array não vazio.");
     }
+
     for (const pg of forma_pagamento) {
-      if (!pg.meio_pagamento || !pg.valor_pagamento) {
+      if (!pg.meio_pagamento || typeof pg.meio_pagamento !== "string") {
         throw new Error(
-          "Cada forma de pagamento deve conter meio_pagamento e valor_pagamento."
+          "Cada forma de pagamento deve conter um meio_pagamento válido."
         );
+      }
+
+      if (
+        pg.valor_pagamento == null ||
+        typeof pg.valor_pagamento !== "number" ||
+        pg.valor_pagamento <= 0
+      ) {
+        throw new Error(
+          "Cada forma de pagamento deve conter um valor_pagamento numérico e maior que zero."
+        );
+      }
+
+      if (pg.meio_pagamento === "transferencia") {
+        if (!pg.dados_transferencia?.codigo_conta_bancaria) {
+          throw new Error(
+            "Transferência requer 'dados_transferencia.codigo_conta_bancaria'."
+          );
+        }
+      }
+
+      if (pg.meio_pagamento === "aprazo") {
+        if (!Array.isArray(pg.parcelas) || pg.parcelas.length === 0) {
+          throw new Error("Pagamento a prazo deve conter parcelas.");
+        }
       }
     }
 
@@ -62,20 +96,27 @@ exports.createEntrada = async (req, res) => {
         codigo_produto: item.codigo_produto,
         codigo_loja,
         codigo_empresa,
-      });
-      if (!produto) continue;
+      }).session(session);
 
-      const qt = Number(item.quantidade) || 0;
+      if (!produto) {
+        throw new Error(`Produto ${item.codigo_produto} não encontrado.`);
+      }
+
+      const qt = Number(item.quantidade);
+      if (isNaN(qt) || qt <= 0) {
+        throw new Error(`Quantidade inválida no item ${item.codigo_produto}.`);
+      }
+
       produto.estoque[0].estoque += qt;
 
       produto.precos = [
         {
-          preco_compra: item.precos.preco_compra,
-          cma: item.precos.cma,
-          preco_venda: item.precos.preco_venda,
-          preco_atacado: item.precos.preco_atacado,
-          lucro_venda: item.precos.lucro_venda,
-          lucro_atacado: item.precos.lucro_atacado,
+          preco_compra: item.precos?.preco_compra || 0,
+          cma: item.precos?.cma || 0,
+          preco_venda: item.precos?.preco_venda || 0,
+          preco_atacado: item.precos?.preco_atacado || 0,
+          lucro_venda: item.precos?.lucro_venda || 0,
+          lucro_atacado: item.precos?.lucro_atacado || 0,
           ultimos_precos: {
             ultimo_preco_compra: produto.precos[0]?.preco_compra || 0,
             ultimo_cma: produto.precos[0]?.cma || 0,
@@ -106,26 +147,23 @@ exports.createEntrada = async (req, res) => {
     const pgAPrazo = forma_pagamento.find((p) => p.meio_pagamento === "aprazo");
     if (pgAPrazo) {
       const { parcelas } = pgAPrazo;
-      if (!Array.isArray(parcelas) || parcelas.length === 0) {
-        throw new Error("Parcelas obrigatórias para pagamento a prazo.");
-      }
-
       const last = await Pagar.findOne({ codigo_loja, codigo_empresa })
         .sort({ codigo_pagar: -1 })
         .select("codigo_pagar")
         .lean();
+
       let nextCodigoPagar = last ? last.codigo_pagar + 1 : 1;
 
       const pagamentos = parcelas.map((parc, idx) => {
-        const { valor_total, data_vencimento } = parc;
-        if (!valor_total || valor_total <= 0) {
+        if (!parc.valor_total || parc.valor_total <= 0) {
           throw new Error(`Valor inválido na parcela ${idx + 1}`);
         }
-        if (!data_vencimento) {
+        if (!parc.data_vencimento) {
           throw new Error(
             `Data de vencimento obrigatória na parcela ${idx + 1}`
           );
         }
+
         return {
           codigo_loja,
           codigo_empresa,
@@ -134,10 +172,10 @@ exports.createEntrada = async (req, res) => {
           origem: "entrada",
           categoria: "outros",
           documento_origem: codigo_entrada,
-          valor_total,
+          valor_total: parc.valor_total,
           descricao: "Entrada de produtos no estoque",
-          valor_restante: valor_total,
-          data_vencimento: new Date(data_vencimento),
+          valor_restante: parc.valor_total,
+          data_vencimento: new Date(parc.data_vencimento),
           status: "aberto",
           fatura: `${idx + 1}/${parcelas.length}`,
         };
@@ -146,11 +184,90 @@ exports.createEntrada = async (req, res) => {
       await Pagar.insertMany(pagamentos, { session });
     }
 
+    for (const pagamento of forma_pagamento) {
+      const movimentacao = {
+        codigo_loja,
+        codigo_empresa,
+        codigo_movimento,
+        tipo_movimentacao: "saida",
+        valor: pagamento.valor_pagamento,
+        meio_pagamento: pagamento.meio_pagamento,
+        documento_origem: codigo_entrada,
+        origem: "entrada",
+        categoria_contabil: "2.1.1",
+      };
+
+      if (pagamento.meio_pagamento === "transferencia") {
+        const conta = await ContaBancaria.findOne({
+          codigo_loja,
+          codigo_empresa,
+          codigo_conta_bancaria:
+            pagamento.dados_transferencia.codigo_conta_bancaria,
+        }).session(session);
+
+        if (!conta) throw new Error("Conta bancária informada não encontrada.");
+        if (conta.saldo < pagamento.valor_pagamento)
+          throw new Error("Saldo insuficiente na conta bancária.");
+
+        movimentacao.codigo_conta_bancaria = conta.codigo_conta_bancaria;
+        conta.saldo -= pagamento.valor_pagamento;
+        await conta.save({ session });
+      } else if (["pix", "cartao_debito"].includes(pagamento.meio_pagamento)) {
+        const contaPadrao = await ContaBancaria.findOne({
+          codigo_loja,
+          codigo_empresa,
+          conta_padrao: true,
+        }).session(session);
+
+        if (!contaPadrao)
+          throw new Error("Conta bancária padrão não definida.");
+        if (contaPadrao.saldo < pagamento.valor_pagamento)
+          throw new Error("Saldo insuficiente na conta padrão.");
+
+        movimentacao.codigo_conta_bancaria = contaPadrao.codigo_conta_bancaria;
+        contaPadrao.saldo -= pagamento.valor_pagamento;
+        await contaPadrao.save({ session });
+      } else if (pagamento.meio_pagamento === "dinheiro") {
+        const caixa = await Caixa.findOne({
+          codigo_loja,
+          codigo_empresa,
+          status: "aberto",
+        }).session(session);
+
+        if (!caixa) throw new Error("Nenhum caixa aberto encontrado.");
+        if (caixa.saldo_final < pagamento.valor_pagamento)
+          throw new Error("Saldo insuficiente no caixa.");
+
+        movimentacao.codigo_caixa = caixa.codigo_caixa;
+        movimentacao.caixa = caixa.caixa;
+        movimentacao.caixaId = caixa._id;
+        caixa.saldo_final -= pagamento.valor_pagamento;
+        await caixa.save({ session });
+      } else if (pagamento.meio_pagamento === "cartao_credito") {
+        const contaPadrao = await ContaBancaria.findOne({
+          codigo_loja,
+          codigo_empresa,
+          conta_padrao: true,
+        }).session(session);
+
+        if (!contaPadrao)
+          throw new Error("Conta bancária padrão não encontrada.");
+        if (contaPadrao.limite < pagamento.valor_pagamento)
+          throw new Error("Limite de crédito insuficiente.");
+
+        movimentacao.codigo_conta_bancaria = contaPadrao.codigo_conta_bancaria;
+        contaPadrao.limite -= pagamento.valor_pagamento;
+        await contaPadrao.save({ session });
+      }
+      const mov = new MovimentacaoCaixa(movimentacao);
+      await mov.save({ session });
+    }
+
     await session.commitTransaction();
     session.endSession();
 
     res.status(201).json({
-      message: "Entrada criada com sucesso",
+      message: "Entrada criada com sucesso.",
       entrada: newEntrada,
     });
   } catch (error) {
@@ -229,7 +346,7 @@ exports.getEntradas = async (req, res) => {
                 $in: fornecedoresPorFantasia.map((f) => f._id),
               };
             } else {
-              filtros.fornecedor = null; 
+              filtros.fornecedor = null;
             }
             break;
           default:
@@ -243,6 +360,7 @@ exports.getEntradas = async (req, res) => {
 
     const entradas = await Entrada.find(filtros)
       .populate("fornecedor", "razao_social nome_fantasia")
+      .sort({ codigo_entrada: -1 })
       .skip(skip)
       .limit(limitNumber);
 

@@ -143,6 +143,13 @@ exports.getGruposAtivos = async (req, res) => {
   try {
     const { codigo_loja, codigo_empresa, status, page, limit } = req.query;
 
+    if (!codigo_loja || !codigo_empresa) {
+      console.error("Faltando codigo_loja ou codigo_empresa");
+      return res.status(400).json({
+        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+      });
+    }
+
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
 

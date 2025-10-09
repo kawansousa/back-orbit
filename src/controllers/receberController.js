@@ -518,7 +518,7 @@ exports.liquidarReceber = async (req, res) => {
       caixaId: caixa._id,
       codigo_movimento,
       caixa: caixa.caixa,
-      codigo_caixa: caixa.codigo_caixa,
+      codigo_caixa: caixa.codigo_caixa, 
       tipo_movimentacao: "entrada",
       valor: valorNumerico,
       meio_pagamento,

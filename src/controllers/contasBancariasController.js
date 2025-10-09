@@ -1,8 +1,6 @@
 const ContasBancarias = require("../models/contas_bancarias.model");
 const MovimentacaoBanco = require("../models/movimentacoes_caixa.model");
-const path = require("path");
-const ejs = require("ejs");
-const puppeteer = require("puppeteer");
+const { body, validationResult } = require("express-validator");
 
 exports.adicionarContaBancaria = async (req, res) => {
   try {
@@ -32,9 +30,7 @@ exports.adicionarContaBancaria = async (req, res) => {
     const ContaExistente = await ContasBancarias.findOne({
       codigo_loja,
       codigo_empresa,
-      $or: [
-        { conta_bancaria },
-      ],
+      $or: [{ conta_bancaria }],
     });
 
     // if (ContaExistente) {
@@ -157,160 +153,6 @@ exports.atualizarContaBancaria = async (req, res) => {
 
     await updatedProduto.save();
     res.status(200).json(updatedProduto);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.excluirContaBancaria = async (req, res) => {
-  try {
-    const { codigo_loja, codigo_empresa, tipo_conta, codigo_pai } = req.body;
-
-    const documentoContas = await ContasBancarias.findOne({
-      codigo_loja,
-      codigo_empresa,
-    });
-
-    if (!documentoContas) {
-      return res.status(404).json({
-        message: "ContasBancarias não encontrado para esta loja e empresa",
-      });
-    }
-
-    let conta;
-    switch (tipo_conta) {
-      case "receitas_operacional":
-        conta = documentoContas.receitas_operacional.id(codigo_pai);
-        break;
-      case "deducoes":
-        conta = documentoContas.deducoes.id(codigo_pai);
-        break;
-      case "custo":
-        conta = documentoContas.custo.id(codigo_pai);
-        break;
-      case "despesas_operacionais":
-        conta = documentoContas.despesas_operacionais.id(codigo_pai);
-        break;
-      case "outras_dispesas_receitas":
-        conta = documentoContas.outras_dispesas_receitas.id(codigo_pai);
-        break;
-      default:
-        return res.status(400).json({ message: "Tipo de conta inválido" });
-    }
-
-    if (!conta) {
-      return res.status(404).json({ message: "Conta não encontrada" });
-    }
-
-    conta.remove();
-
-    await documentoContas.save();
-    res.status(200).json(documentoContas);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.listarContaBancaria = async (req, res) => {
-  try {
-    const { codigo_loja, codigo_empresa } = req.query;
-
-    if (!codigo_loja || !codigo_empresa) {
-      console.error("Faltando codigo_loja ou codigo_empresa");
-      return res.status(400).json({
-        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
-      });
-    }
-
-    const contaBancariaEncontrada = await ContasBancarias.findOne({
-      codigo_loja,
-      codigo_empresa,
-    });
-
-    if (!contaBancariaEncontrada) {
-      console.error("ContasBancarias não encontrado");
-      return res.status(404).json({
-        error: "ContasBancarias não encontrado.",
-      });
-    }
-
-    const templatePath = path.join(__dirname, "../views/ContasBancarias.ejs");
-    const html = await ejs.renderFile(templatePath, { ContasBancarias: contaBancariaEncontrada });
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "domcontentloaded" });
-
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "20px",
-        right: "20px",
-        bottom: "20px",
-        left: "20px",
-      },
-      preferCSSPageSize: true,
-    });
-
-    await browser.close();
-
-    res.setHeader(
-      "Content-Disposition",
-      "attachment; filename=ContasBancarias.pdf"
-    );
-    res.end(pdfBuffer);
-  } catch (error) {
-    console.error("Erro ao gerar PDF:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.registrarMovimentacaoBanco = async (req, res) => {
-  try {
-    const {
-      codigo_loja,
-      codigo_empresa,
-      tipo_movimentacao,
-      codigo_movimento,
-      valor,
-      origem,
-      meio_pagamento,
-      documento_origem,
-      categoria_contabil,
-      obsevacao,
-    } = req.body;
-
-    const contasBancarias = await ContasBancarias.findOne({
-      codigo_loja,
-      codigo_empresa,
-      conta_padrao: true,
-    });
-
-    if (!contasBancarias || contasBancarias.conta_padrao !== true) {
-      return res.status(400).json({ message: "Caixa não está aberto" });
-    }
-
-    const novaMovimentacaoBanco = new MovimentacaoBanco({
-      codigo_loja: contasBancarias.codigo_loja,
-      codigo_empresa: contasBancarias.codigo_empresa,
-      codigo_movimento,
-      codigo_conta_bancaria: contasBancarias.codigo_conta_bancaria,
-      tipo_movimentacao,
-      valor,
-      origem,
-      documento_origem,
-      numero_movimentacao: Date.now(),
-      meio_pagamento,
-      categoria_contabil,
-      obsevacao,
-    });
-
-    await novaMovimentacaoBanco.save();
-    res.status(201).json(novaMovimentacaoBanco);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -478,5 +320,141 @@ exports.removerContaPadrao = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.criarMovimentacaoBancaria = async (req, res) => {
+  const validations = [
+    body("codigo_loja")
+      .notEmpty()
+      .withMessage("Código da loja é obrigatório")
+      .trim(),
+
+    body("codigo_empresa")
+      .notEmpty()
+      .withMessage("Código da empresa é obrigatório")
+      .trim(),
+
+    body("codigo_conta_bancaria")
+      .notEmpty()
+      .withMessage("Código da conta bancária é obrigatório")
+      .trim(),
+
+    body("tipo_movimentacao")
+      .notEmpty()
+      .withMessage("Tipo de movimentação é obrigatório"),
+
+    body("valor")
+      .notEmpty()
+      .withMessage("Valor é obrigatório")
+      .isFloat({ gt: 0 })
+      .withMessage("Valor deve ser um número positivo maior que zero")
+      .toFloat(),
+
+    body("meio_pagamento")
+      .notEmpty()
+      .withMessage("Meio de pagamento é obrigatório"),
+  ];
+
+  try {
+    await Promise.all(validations.map((validation) => validation.run(req)));
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Dados inválidos",
+        errors: errors.array().map((error) => ({
+          campo: error.path,
+          mensagem: error.msg,
+          valor_recebido: error.value,
+        })),
+      });
+    }
+
+    const {
+      codigo_loja,
+      codigo_empresa,
+      codigo_conta_bancaria,
+      tipo_movimentacao,
+      valor,
+      meio_pagamento,
+    } = req.body;
+
+    const newMovement = new MovimentacaoBanco({
+      codigo_loja,
+      codigo_empresa,
+      codigo_conta_bancaria,
+      status: "ativo",
+      tipo_movimentacao,
+      valor: parseFloat(valor.toFixed(2)),
+      origem: "banco_manual",
+      documento_origem: "manual",
+      meio_pagamento,
+      categoria_contabil: "2.1.1",
+      data_movimentacao: new Date(),
+    });
+    await newMovement.save();
+
+    const contaBancaria = await ContasBancarias.findOne({
+      codigo_loja: newMovement.codigo_loja,
+      codigo_empresa: newMovement.codigo_empresa,
+      codigo_conta_bancaria: newMovement.codigo_conta_bancaria,
+    });
+
+    if (newMovement.tipo_movimentacao === "entrada") {
+      contaBancaria.saldo += newMovement.valor;
+    }
+    if (newMovement.tipo_movimentacao === "saida") {
+      contaBancaria.saldo -= newMovement.valor;
+    }
+    await contaBancaria.save();
+
+    res.status(201).json(newMovement);
+  } catch (error) {
+    console.error("Erro ao criar movimentação bancária:", {
+      message: error.message,
+      stack: error.stack,
+      body: req.body,
+    });
+
+    if (error.name === "ValidationError") {
+      const mongoErrors = Object.values(error.errors).map((err) => ({
+        campo: err.path,
+        mensagem: err.message,
+        valor_recebido: err.value,
+      }));
+
+      return res.status(400).json({
+        success: false,
+        message: "Erro de validação do banco de dados",
+        errors: mongoErrors,
+      });
+    }
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Já existe uma movimentação com esses dados",
+      });
+    }
+
+    if (
+      error.name === "MongoNetworkError" ||
+      error.name === "MongoTimeoutError"
+    ) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Erro de conexão com o banco de dados. Tente novamente em alguns instantes",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Erro interno do servidor",
+      error:
+        process.env.NODE_ENV === "development" ? error.message : "Erro interno",
+    });
   }
 };

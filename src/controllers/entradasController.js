@@ -360,6 +360,7 @@ exports.getEntradas = async (req, res) => {
 
     const entradas = await Entrada.find(filtros)
       .populate("fornecedor", "razao_social nome_fantasia")
+      .sort({ codigo_entrada: -1 })
       .skip(skip)
       .limit(limitNumber);
 

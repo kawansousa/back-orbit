@@ -56,7 +56,7 @@ app.use("/os", auth, osRoutes);
 app.use("/servicos", auth, servicosRoutes);
 app.use("/mecanicos", auth, mecanicosRoutes);
 app.use("/pagar", auth, pagarRoutes);
-app.use("/landingPage", auth, landingPageRoutes);
+app.use("/landingPage", landingPageRoutes);
 
 connectToDatabase();
 module.exports = app;

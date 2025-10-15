@@ -1,34 +1,48 @@
 const Produto = require("../models/produtos.model");
 const Grupos = require("../models/grupos.model");
+const Lojas = require("../models/ladingPage.model"); // <-- importe o model que contém os dados das lojas
 
 exports.getProdutos = async (req, res) => {
   try {
     const {
-      codigo_loja,
-      codigo_empresa,
       page,
       limit,
       searchTerm,
       searchType,
       grupo,
       sort,
+      url,
     } = req.query;
 
-    if (!codigo_loja || !codigo_empresa) {
+    // 1️⃣ Verifica se veio a URL
+    if (!url) {
       return res.status(400).json({
-        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+        error: "O parâmetro 'url' é obrigatório.",
       });
     }
 
+    // 2️⃣ Busca loja/empresa correspondente
+    const lojaDoc = await Lojas.findOne({ url: url.trim().toLowerCase() });
+
+    if (!lojaDoc) {
+      return res.status(404).json({
+        error: "Loja não encontrada para a URL informada.",
+      });
+    }
+
+    // Extrai os códigos da loja encontrada
+    const codigo_loja = lojaDoc.codigo_loja;
+    const codigo_empresa = lojaDoc.codigo_empresa;
+
+    // 3️⃣ Paginação
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
     const skip = (pageNumber - 1) * limitNumber;
 
-    let filtros = {
-      codigo_loja,
-      codigo_empresa,
-    };
+    // 4️⃣ Filtros base
+    let filtros = { codigo_loja, codigo_empresa };
 
+    // 5️⃣ Filtro por grupo
     if (grupo && grupo.trim() !== "") {
       const grupoDoc = await Grupos.findOne({
         descricao: { $regex: new RegExp(`^${grupo}$`, "i") },
@@ -47,6 +61,7 @@ exports.getProdutos = async (req, res) => {
       }
     }
 
+    // 6️⃣ Filtro por busca
     if (searchTerm && searchTerm.trim() !== "") {
       const termoBusca = searchTerm.trim();
       if (searchType === "todos") {
@@ -61,11 +76,9 @@ exports.getProdutos = async (req, res) => {
       } else {
         switch (searchType) {
           case "codigo_produto":
-            if (!isNaN(termoBusca)) {
-              filtros[searchType] = parseInt(termoBusca, 10);
-            } else {
-              filtros[searchType] = -1;
-            }
+            filtros[searchType] = !isNaN(termoBusca)
+              ? parseInt(termoBusca, 10)
+              : -1;
             break;
           case "codigo_barras":
             filtros[searchType] = String(termoBusca);
@@ -78,6 +91,7 @@ exports.getProdutos = async (req, res) => {
       }
     }
 
+    // 7️⃣ Ordenação
     const sortOptions = {};
     if (sort) {
       if (sort.startsWith("-")) {
@@ -89,6 +103,7 @@ exports.getProdutos = async (req, res) => {
       sortOptions["descricao"] = 1;
     }
 
+    // 8️⃣ Pipeline de agregação
     const pipeline = [
       { $match: filtros },
       { $sort: sortOptions },
@@ -96,7 +111,14 @@ exports.getProdutos = async (req, res) => {
       { $limit: limitNumber },
       {
         $addFields: {
-          grupoIdConvertido: { $toInt: "$grupo" },
+          grupoIdConvertido: {
+            $convert: {
+              input: "$grupo",
+              to: "int",
+              onError: null,
+              onNull: null,
+            },
+          },
         },
       },
       {
@@ -121,10 +143,13 @@ exports.getProdutos = async (req, res) => {
       { $unset: ["grupoInfo", "grupoIdConvertido"] },
     ];
 
+    // 9️⃣ Execução
     const produtos = await Produto.aggregate(pipeline);
     const totalProdutos = await Produto.countDocuments(filtros);
 
+    // 🔟 Retorno
     res.status(200).json({
+      loja: lojaDoc.company_name,
       total: totalProdutos,
       page: pageNumber,
       limit: limitNumber,
@@ -136,3 +161,4 @@ exports.getProdutos = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+

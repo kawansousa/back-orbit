@@ -1,16 +1,25 @@
 const Grupos = require("../models/grupos.model");
+const Lojas = require("../models/ladingPage.model"); // <-- importe o model que contém os dados das lojas
 
 exports.getGruposAtivos = async (req, res) => {
   try {
-    const { codigo_loja, codigo_empresa, page, limit } = req.query;
+    const { page, limit, url, } = req.query;
 
-    if (!codigo_loja || !codigo_empresa) {
-      console.error("Faltando codigo_loja ou codigo_empresa");
+
+    if (!url) {
       return res.status(400).json({
-        error: "Os campos codigo_loja e codigo_empresa são obrigatórios.",
+        error: "O parâmetro 'url' é obrigatório.",
       });
     }
 
+    // 2️⃣ Busca loja/empresa correspondente
+    const lojaDoc = await Lojas.findOne({ url: url.trim().toLowerCase() });
+
+    if (!lojaDoc) {
+      return res.status(404).json({
+        error: "Loja não encontrada para a URL informada.",
+      });
+    }
     if (!page) {
       console.error("Faltando page");
       return res.status(400).json({
@@ -37,8 +46,8 @@ exports.getGruposAtivos = async (req, res) => {
     const skip = (pageNumber - 1) * limitNumber;
 
     const filtros = {
-      codigo_loja,
-      codigo_empresa,
+      codigo_loja: lojaDoc.codigo_loja,
+      codigo_empresa: lojaDoc.codigo_empresa,
       status: "ativo",
     };
 

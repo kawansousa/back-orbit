@@ -16,7 +16,7 @@ const precosShemas = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0,
-  },lucro_venda: {
+  }, lucro_venda: {
     type: Number,
     required: true,
     min: 0,
@@ -123,6 +123,9 @@ const produtoSchema = new mongoose.Schema(
     status: {
       type: String,
       default: "ativo",
+    },
+    imagem: {
+      type: String,
     },
     grupo: {
       type: String,

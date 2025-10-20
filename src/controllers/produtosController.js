@@ -104,6 +104,7 @@ exports.createProduto = async (req, res) => {
       codigo_empresa,
       codigo_produto, // Atribuído no middleware
       codigo_barras,
+      imagem,
       codigo_fabricante,
       descricao,
       status,
@@ -163,6 +164,7 @@ exports.createProduto = async (req, res) => {
     const newProduto = new Produto({
       codigo_loja,
       codigo_empresa,
+      imagem,
       codigo_produto, // Valor já atribuído pelo middleware
       codigo_barras: codigoBarrasString,
       codigo_fabricante,

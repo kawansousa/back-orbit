@@ -42,207 +42,144 @@ exports.getClientes = async (req, res) => {
 
     if (searchTerm && searchTerm.trim() !== "") {
       const termoBusca = searchTerm.trim();
+      const numeroLimpo = termoBusca.replace(/[^\d]/g, ""); // remove pontos, traços e barras
 
-      if (searchType === "todos") {
-        const conditions = [];
+      // Função auxiliar para criar condições de CPF/CNPJ
+      const gerarCondicoesCpfCnpj = (campo, numero) => {
+        const condicoes = [];
 
-        conditions.push({ nome: { $regex: termoBusca, $options: "i" } });
-        conditions.push({ email: { $regex: termoBusca, $options: "i" } });
+        // Busca sem formatação
+        condicoes.push({ [campo]: { $regex: numero, $options: "i" } });
 
-        const cpfLimpo = termoBusca.replace(/[^\d]/g, "");
-        if (cpfLimpo.length > 0) {
-          conditions.push({ cpf: { $regex: cpfLimpo, $options: "i" } });
-          if (cpfLimpo.length === 11) {
-            const cpfFormatado = cpfLimpo.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-            conditions.push({ cpf: { $regex: cpfFormatado.replace(/[.\/-]/g, "[.\\/-]?"), $options: "i" } });
+        // Busca formatada com regex flexível (aceita ., / e - opcionais)
+        condicoes.push({
+          [campo]: {
+            $regex: numero.split("").join("[.\\/-]?"),
+            $options: "i",
+          },
+        });
+
+        // Caso o campo esteja salvo como número (sem string)
+        condicoes.push({
+          $expr: {
+            $regexMatch: {
+              input: { $toString: `$${campo}` },
+              regex: numero,
+              options: "i",
+            },
+          },
+        });
+
+        return condicoes;
+      };
+
+      const conditions = [];
+
+      switch (searchType) {
+        case "nome":
+        case "email":
+          filtros[searchType] = { $regex: termoBusca, $options: "i" };
+          break;
+
+        case "cpf":
+          if (numeroLimpo.length >= 11) {
+            filtros.$or = gerarCondicoesCpfCnpj("cpf", numeroLimpo);
           }
-        }
+          break;
 
-        const cnpjLimpo = termoBusca.replace(/[^\d]/g, "");
-        if (cnpjLimpo.length > 0) {
-          if (cnpjLimpo.length >= 11) {
-            conditions.push({ cnpj: parseInt(cnpjLimpo) });
+        case "cnpj":
+          if (numeroLimpo.length >= 11) {
+            filtros.$or = gerarCondicoesCpfCnpj("cnpj", numeroLimpo);
           }
-          
-          conditions.push({ cnpj: { $regex: cnpjLimpo, $options: "i" } });
-          
-          conditions.push({
-            $expr: {
-              $regexMatch: {
-                input: { $toString: "$cnpj" },
-                regex: cnpjLimpo,
-                options: "i"
-              }
-            }
-          });
-        }
+          break;
 
-        filtros.$or = conditions;
-      } else {
-        switch (searchType) {
-          case "nome":
-          case "email":
-            filtros[searchType] = { $regex: termoBusca, $options: "i" };
-            break;
-          case "cpf":
-            const cpfLimpo = termoBusca.replace(/[^\d]/g, "");
-            if (cpfLimpo.length > 0) {
-              const conditions = [];
-              
-              conditions.push({ cpf: { $regex: cpfLimpo, $options: "i" } });
-              
-              if (cpfLimpo.length === 11) {
-                const cpfFormatado = cpfLimpo.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-                conditions.push({ cpf: { $regex: cpfFormatado.replace(/[.\/-]/g, "[.\\/-]?"), $options: "i" } });
-              }
-              
-              conditions.push({ cpf: { $regex: cpfLimpo.split('').join('[.\\/-]*'), $options: "i" } });
-              
-              filtros.$or = conditions;
-            } else {
-              filtros.cpf = null;
-            }
-            break;
-          case "cnpj":
-            const cnpjLimpo = termoBusca.replace(/[^\d]/g, "");
-            
-            if (cnpjLimpo.length > 0) {
-              const conditions = [];
-              
-              if (cnpjLimpo.length >= 11) {
-                conditions.push({ cnpj: parseInt(cnpjLimpo) });
-              }
-              
-              conditions.push({ cnpj: { $regex: cnpjLimpo, $options: "i" } });
-              
-              conditions.push({
-                $expr: {
-                  $regexMatch: {
-                    input: { $toString: "$cnpj" },
-                    regex: cnpjLimpo,
-                    options: "i"
-                  }
-                }
-              });
-              
-              filtros.$or = conditions;
-            } else {
-              filtros.cnpj = null;
-            }
-            break;
-          default:
-            return res.status(400).json({
-              error:
-                "Tipo de busca inválido. Use: todos, nome, cpf, cnpj ou email",
-            });
-        }
+        case "todos":
+        default:
+          conditions.push({ nome: { $regex: termoBusca, $options: "i" } });
+          conditions.push({ email: { $regex: termoBusca, $options: "i" } });
+
+          if (numeroLimpo.length > 0) {
+            conditions.push(...gerarCondicoesCpfCnpj("cpf", numeroLimpo));
+            conditions.push(...gerarCondicoesCpfCnpj("cnpj", numeroLimpo));
+          }
+
+          filtros.$or = conditions;
+          break;
       }
     }
 
+    // --- PIPELINE ---
     const pipeline = [
       { $match: filtros },
       { $sort: { updatedAt: -1 } },
       { $skip: skip },
       { $limit: limitNumber },
 
+      // Corrige tipo de cidade se for número
       {
         $addFields: {
           "endereco.cidade": {
             $cond: {
-              if: {
-                $and: [
-                  { $ne: ["$endereco.cidade", ""] },
-                  { $ne: ["$endereco.cidade", null] },
-                ],
-              },
+              if: { $regexMatch: { input: "$endereco.cidade", regex: /^[0-9]+$/ } },
               then: { $toInt: "$endereco.cidade" },
-              else: null,
+              else: "$endereco.cidade",
             },
           },
-        },
-      },
-
-      {
-        $addFields: {
           "conjugue.endereco.cidade": {
             $cond: {
-              if: {
-                $and: [
-                  { $ne: ["$conjugue.endereco.cidade", ""] },
-                  { $ne: ["$conjugue.endereco.cidade", null] },
-                ],
-              },
+              if: { $regexMatch: { input: "$conjugue.endereco.cidade", regex: /^[0-9]+$/ } },
               then: { $toInt: "$conjugue.endereco.cidade" },
-              else: null,
+              else: "$conjugue.endereco.cidade",
             },
           },
         },
       },
 
+      // Faz lookup da cidade principal
       {
         $lookup: {
           from: "cidades",
           let: { cidadeId: "$endereco.cidade" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$codigo", "$$cidadeId"] },
-                    { $ne: ["$$cidadeId", null] },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$codigo", "$$cidadeId"] } } },
           ],
           as: "cidadeInfo",
         },
       },
-
       {
         $addFields: {
           "endereco.cidade": {
             $cond: {
               if: { $gt: [{ $size: "$cidadeInfo" }, 0] },
               then: { $arrayElemAt: ["$cidadeInfo.nome", 0] },
-              else: "",
+              else: "$endereco.cidade",
             },
           },
         },
       },
 
+      // Faz lookup da cidade do conjugue
       {
         $lookup: {
           from: "cidades",
           let: { cidadeId: "$conjugue.endereco.cidade" },
           pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$codigo", "$$cidadeId"] },
-                    { $ne: ["$$cidadeId", null] },
-                  ],
-                },
-              },
-            },
+            { $match: { $expr: { $eq: ["$codigo", "$$cidadeId"] } } },
           ],
           as: "cidadeInfoConjugue",
         },
       },
-
       {
         $addFields: {
           "conjugue.endereco.cidade": {
             $cond: {
               if: { $gt: [{ $size: "$cidadeInfoConjugue" }, 0] },
               then: { $arrayElemAt: ["$cidadeInfoConjugue.nome", 0] },
-              else: "",
+              else: "$conjugue.endereco.cidade",
             },
           },
         },
       },
-
       { $unset: ["cidadeInfo", "cidadeInfoConjugue"] },
     ];
 
@@ -263,10 +200,11 @@ exports.getClientes = async (req, res) => {
           : undefined,
     });
   } catch (error) {
-    console.error("Erro ao buscar clientes:", error);
+    console.error("Erro ao buscar clientes:", error.message, error.stack);
     res.status(500).json({ error: "Erro interno do servidor" });
   }
 };
+
 
 exports.createCliente = async (req, res) => {
   try {

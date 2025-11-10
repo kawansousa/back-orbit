@@ -28,7 +28,7 @@ exports.getProdutos = async (req, res) => {
     const limitNumber = parseInt(limit, 10);
     const skip = (pageNumber - 1) * limitNumber;
 
-    const filtros = { codigo_loja, codigo_empresa };
+    const filtros = { codigo_loja, codigo_empresa, status: "ativo" };
 
     if (grupo && grupo.trim() !== "") {
       filtros.grupo = grupo.trim();

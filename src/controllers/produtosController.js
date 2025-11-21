@@ -36,6 +36,7 @@ exports.getProdutos = async (req, res) => {
 
     if (searchTerm && searchTerm.trim() !== "") {
       const termo = searchTerm.trim();
+      
       if (searchType === "todos") {
         const conditions = [
           { descricao: { $regex: termo, $options: "i" } },

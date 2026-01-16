@@ -36,7 +36,7 @@ exports.getProdutos = async (req, res) => {
 
     if (searchTerm && searchTerm.trim() !== "") {
       const termo = searchTerm.trim();
-      
+
       if (searchType === "todos") {
         const conditions = [
           { descricao: { $regex: termo, $options: "i" } },
@@ -85,6 +85,7 @@ exports.getProdutos = async (req, res) => {
     const produtos = await Produto.aggregate(pipeline);
     const totalProdutos = await Produto.countDocuments(filtros);
 
+
     return res.status(200).json({
       total: totalProdutos,
       page: pageNumber,
@@ -92,6 +93,8 @@ exports.getProdutos = async (req, res) => {
       totalPages: Math.ceil(totalProdutos / limitNumber),
       data: produtos,
     });
+
+
   } catch (error) {
     console.error("Erro na busca de produtos:", error);
     return res.status(500).json({ error: error.message });
@@ -417,14 +420,8 @@ exports.importClientesFromExcel = async (req, res) => {
 exports.syncProdutos = async (req, res) => {
   try {
     const { lastSyncTime, codigo_loja, codigo_empresa } = req.query;
-
-    console.log(lastSyncTime);
     const syncTime = new Date(lastSyncTime);
 
-    // Log para verificar a data recebida
-    console.log("Data de sincronização recebida:", syncTime);
-
-    // Encontre produtos alterados ou adicionados desde a última sincronização
     const produtos = await Produto.find({
       updatedAt: { $gte: syncTime },
       codigo_loja,
@@ -432,7 +429,6 @@ exports.syncProdutos = async (req, res) => {
     });
 
     // Log para verificar quantos produtos foram encontrados
-    console.log("Produtos encontrados:", produtos.length);
 
     res.status(200).json(produtos);
   } catch (error) {

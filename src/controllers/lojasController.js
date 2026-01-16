@@ -546,9 +546,6 @@ exports.createEmpresa = async (req, res) => {
         $push: { acesso_loja: novoAcesso },
       });
 
-      console.log("Resultado da atualização de usuários administradores:");
-      console.log(`  Documentos encontrados: ${resultadoUpdate.matchedCount}`);
-      console.log(`  Documentos modificados: ${resultadoUpdate.modifiedCount}`);
     }
 
     res.status(201).json({

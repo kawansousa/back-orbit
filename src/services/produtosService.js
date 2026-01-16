@@ -7,7 +7,7 @@ exports.getProdutos = async (req, res) => {
     const {
       page,
       limit,
-      searchTerm,
+        searchTerm,
       searchType,
       grupo,
       sort,

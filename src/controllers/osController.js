@@ -1337,7 +1337,6 @@ exports.generateOsPDF = async (req, res) => {
       codigo_empresa,
     }).populate("cliente", "nome cpf");
 
-    console.log(os);
 
     if (!os) {
       console.error("Ordem de serviço não encontrada");

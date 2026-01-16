@@ -1,8 +1,0 @@
-{
-    "markdown.preview.scrollEditorWithPreview": true,
-    "markdown.preview.scrollPreviewWithEditor": true,
-    "workbench.editor.enablePreview": true,
-    "workbench.editor.enablePreviewFromCodeNavigation": true,
-    "workbench.editor.enablePreviewFromQuickOpen": true,
-    "notebook.diff.enablePreview": true
-}

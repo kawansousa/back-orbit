@@ -26,15 +26,7 @@ const authUser = async (req, res, next) => {
     const checkPermission = (permissions, permPath) => {
       // Remove 'permissao.' do início do path se existir
       const cleanPath = permPath.replace(/^permissao\./, '');
-      const parts = cleanPath.split('.');
-
-      // Para debug
-      console.log('Verificando permissão:', {
-        originalPath: permPath,
-        cleanPath,
-        parts,
-        permissions: JSON.stringify(permissions, null, 2)
-      });
+      const parts = cleanPath.split('.');;
 
       // Percorre o array de permissions
       for (const permGroup of permissions) {
@@ -53,15 +45,12 @@ const authUser = async (req, res, next) => {
 
         // Importante: agora verificamos explicitamente se o valor é true
         if (isValid && current === true) {
-          console.log('Permissão encontrada:', current);
           return true;
         } else if (isValid) {
-          console.log('Permissão encontrada mas valor é:', current);
           return false;
         }
       }
 
-      console.log('Permissão não encontrada');
       return false;
     };
 

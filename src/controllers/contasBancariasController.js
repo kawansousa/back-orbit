@@ -33,14 +33,6 @@ exports.adicionarContaBancaria = async (req, res) => {
       $or: [{ conta_bancaria }],
     });
 
-    // if (ContaExistente) {
-    //   if (produtoExistente.conta_bancaria == conta_bancaria) {
-    //     return res.status(409).json({
-    //       error: 'Já existe um item cadastrado com essa descrição.',
-    //     });
-    //   }
-    // }
-
     const novaContasBancarias = new ContasBancarias({
       codigo_loja,
       codigo_empresa,

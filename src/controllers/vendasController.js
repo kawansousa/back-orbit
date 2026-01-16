@@ -1077,11 +1077,11 @@ exports.listarVendas = async (req, res) => {
       ...(status ? { status } : {}),
       ...(dataInicio || dataFim
         ? {
-            data_emissao: {
-              ...(dataInicio ? { $gte: new Date(dataInicio) } : {}),
-              ...(dataFim ? { $lte: new Date(dataFim) } : {}),
-            },
-          }
+          data_emissao: {
+            ...(dataInicio ? { $gte: new Date(dataInicio) } : {}),
+            ...(dataFim ? { $lte: new Date(dataFim) } : {}),
+          },
+        }
         : {}),
     };
 
@@ -1412,3 +1412,218 @@ exports.generateVendaPDF = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/* const FormData = require('form-data');
+const axios = require('axios');
+// Função auxiliar para upload temporário do PDF
+async function uploadPDFTemporario(pdfBuffer, filename) {
+  // OPÇÃO A: Usar serviço como AWS S3, Cloudinary, etc.
+  // Exemplo com Cloudinary:
+  const cloudinary = require('cloudinary').v2;
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'raw',
+        public_id: `vendas/${filename}`,
+        folder: 'vendas-pdf'
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result.secure_url);
+      }
+    );
+
+    uploadStream.end(pdfBuffer);
+  });
+}
+
+// Usando Twilio (Opção 1 - Mais fácil)
+exports.sendVendaPDFWhatsApp = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, numero_whatsapp } = req.body;
+    const vendaId = req.params.id;
+
+    if (!codigo_loja || !codigo_empresa || !numero_whatsapp) {
+      return res.status(400).json({
+        error: "codigo_loja, codigo_empresa e numero_whatsapp são obrigatórios.",
+      });
+    }
+
+    // Busca a loja
+    const loja = await Loja.findOne({
+      codigo_loja,
+      "empresas.codigo_empresa": codigo_empresa,
+    });
+
+    if (!loja) {
+      return res.status(404).json({ error: "Loja não encontrada." });
+    }
+
+    // Busca a venda
+    const venda = await Venda.findOne({
+      _id: vendaId,
+      codigo_loja,
+      codigo_empresa,
+    }).populate("cliente", "nome cpf");
+
+    if (!venda) {
+      return res.status(404).json({ error: "Venda não encontrada." });
+    }
+
+    const empresa = loja.empresas.find(
+      (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
+    );
+    const logo = empresa ? empresa.logo : null;
+    const rodape = empresa ? empresa.rodape : null;
+
+    // Gera o PDF
+    const templatePath = path.join(__dirname, "../views/venda.ejs");
+    const html = await ejs.renderFile(templatePath, { venda, logo, rodape });
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20px", right: "20px", bottom: "20px", left: "20px" },
+      preferCSSPageSize: true,
+    });
+
+    await browser.close();
+
+    // ===== OPÇÃO 1: TWILIO =====
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const twilioWhatsAppNumber = process.env.TWILIO_WHATSAPP_NUMBER; // Ex: whatsapp:+14155238886
+
+    const client = require('twilio')(accountSid, authToken);
+
+    // Upload do PDF para um servidor temporário ou use MediaUrl do Twilio
+    // Aqui vou mostrar usando um serviço de upload temporário
+    const pdfUrl = await uploadPDFTemporario(pdfBuffer, `venda-${vendaId}.pdf`);
+
+    await client.messages.create({
+      from: twilioWhatsAppNumber,
+      to: `whatsapp:+55${numero_whatsapp}`,
+      body: `Olá! Segue o comprovante da venda #${venda._id}`,
+      mediaUrl: [pdfUrl]
+    });
+
+    res.json({
+      success: true,
+      message: "PDF enviado com sucesso pelo WhatsApp!"
+    });
+
+  } catch (error) {
+    console.error("Erro ao enviar PDF via WhatsApp:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ===== OPÇÃO 2: Meta/Facebook WhatsApp Business API =====
+exports.sendVendaPDFWhatsAppMeta = async (req, res) => {
+  try {
+    const { codigo_loja, codigo_empresa, numero_whatsapp } = req.body;
+    const vendaId = req.params.id;
+
+    if (!codigo_loja || !codigo_empresa || !numero_whatsapp) {
+      return res.status(400).json({
+        error: "codigo_loja, codigo_empresa e numero_whatsapp são obrigatórios.",
+      });
+    }
+
+    const loja = await Loja.findOne({
+      codigo_loja,
+      "empresas.codigo_empresa": codigo_empresa,
+    });
+
+    if (!loja) {
+      return res.status(404).json({ error: "Loja não encontrada." });
+    }
+
+    const venda = await Venda.findOne({
+      _id: vendaId,
+      codigo_loja,
+      codigo_empresa,
+    }).populate("cliente", "nome cpf");
+
+    if (!venda) {
+      return res.status(404).json({ error: "Venda não encontrada." });
+    }
+
+    const empresa = loja.empresas.find(
+      (emp) => emp.codigo_empresa === parseInt(codigo_empresa)
+    );
+    const logo = empresa ? empresa.logo : null;
+    const rodape = empresa ? empresa.rodape : null;
+
+    // Gera o PDF
+    const templatePath = path.join(__dirname, "../views/venda.ejs");
+    const html = await ejs.renderFile(templatePath, { venda, logo, rodape });
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20px", right: "20px", bottom: "20px", left: "20px" },
+      preferCSSPageSize: true,
+    });
+
+    await browser.close();
+
+    // Faz upload do PDF para ter uma URL pública
+    const pdfUrl = await uploadPDFTemporario(pdfBuffer, `venda-${vendaId}.pdf`);
+
+    // Envia via Meta WhatsApp Business API
+    const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+    const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    await axios.post(
+      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: `55${numero_whatsapp}`,
+        type: "document",
+        document: {
+          link: pdfUrl,
+          filename: `venda-${vendaId}.pdf`,
+          caption: `Comprovante da venda #${venda._id}`
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "PDF enviado com sucesso pelo WhatsApp!"
+    });
+
+  } catch (error) {
+    console.error("Erro ao enviar PDF via WhatsApp:", error);
+    res.status(500).json({ error: error.message });
+  }
+}; */
+

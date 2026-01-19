@@ -11,8 +11,8 @@ const autoIncrementMovimento = require("../middlewares/autoIncrementMovimento")
 router.use(auth);
 
 router.get(
-  "/", 
-  checkPermission("entrada:ler"), 
+  "/",
+  checkPermission("entrada:ler"),
   entradasController.getEntradas);
 router.get(
   "/produtos",

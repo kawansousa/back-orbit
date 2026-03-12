@@ -8,7 +8,7 @@ const checkPermission = (requiredPermission) => {
 
     if (userPermissions && userPermissions.includes("admin:full_access")) {
       return next();
-    }
+    }      
 
     return res.status(403).json({
       message: "Acesso negado. Você não tem permissão para realizar esta ação.",

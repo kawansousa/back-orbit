@@ -6,7 +6,7 @@ const auth = require("../middlewares/auth");
 const checkPermission = require("../middlewares/checkPermission");
 
 router.use(auth);
-
+  
 router.get(
   "/clientes",
   checkPermission("cliente:ler"),

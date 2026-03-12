@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const connectToDatabase = require("./database/connect");
+const connectToDatabase = require("./config/database/connect.js");
 const router = express.Router();
 const app = express();
 

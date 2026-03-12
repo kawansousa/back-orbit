@@ -18,17 +18,17 @@ const auth = async (req, res, next) => {
     const user = await User.findById(decoded.id).populate('role');
 
     if (!user) {
-        return res.status(401).json({ message: 'Usuário do token não encontrado.' });
+      return res.status(401).json({ message: 'Usuário do token não encontrado.' });
     }
 
     if (user.role && user.role.status === 'inativo') {
-        return res.status(403).json({ message: 'Acesso negado. A função do usuário está inativa.' });
+      return res.status(403).json({ message: 'Acesso negado. A função do usuário está inativa.' });
     }
 
     req.user = {
-        id: user._id,
-        email: user.email,
-        permissions: user.role ? user.role.permissions : []
+      id: user._id,
+      email: user.email,
+      permissions: user.role ? user.role.permissions : []
     };
 
     next();

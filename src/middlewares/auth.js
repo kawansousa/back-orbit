@@ -3,15 +3,17 @@ const User = require("../models/user.model");
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const auth = async (req, res, next) => {
+  // Token vem do cookie httpOnly; fallback para o header Authorization: Bearer
   const authHeader = req.headers.authorization;
+  const token =
+    (req.cookies && req.cookies.accessToken) ||
+    (authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null);
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!token) {
     return res
       .status(401)
       .json({ message: "Acesso negado. Token não fornecido." });
   }
-
-  const token = authHeader.split(" ")[1];
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);

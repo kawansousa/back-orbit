@@ -97,9 +97,15 @@ const MovimentacaoCaixaSchema = new mongoose.Schema({
   },
 });
 
+// Índices compostos para queries frequentes
+MovimentacaoCaixaSchema.index({ codigo_loja: 1, codigo_empresa: 1, documento_origem: 1, origem: 1 });
+MovimentacaoCaixaSchema.index({ caixaId: 1 });
+MovimentacaoCaixaSchema.index({ data_movimentacao: -1 });
+
 const MovimentacaoCaixa = mongoose.model(
   "MovimentacaoCaixa",
   MovimentacaoCaixaSchema
 );
 
 module.exports = MovimentacaoCaixa;
+

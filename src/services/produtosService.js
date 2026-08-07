@@ -1,6 +1,6 @@
 const Produto = require("../models/produtos.model");
 const Grupos = require("../models/grupos.model");
-const Lojas = require("../models/ladingPage.model"); // <-- importe o model que contém os dados das lojas
+const Lojas = require("../models/landingPage.model"); // <-- importe o model que contém os dados das lojas
 
 exports.getProdutos = async (req, res) => {
   try {

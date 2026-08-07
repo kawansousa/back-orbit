@@ -1,9 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const osController = require("../controllers/osController");
-const autoIncrementOs = require("../middlewares/autoIncrementOs");
+const autoIncrement = require("../middlewares/autoIncrement");
+const Os = require("../models/os.model");
 const autoIncrementreceber = require("../middlewares/autoIncrementreceber");
 const autoIncrementMovimento = require("../middlewares/autoIncrementMovimento");
+
+const autoIncrementOs = autoIncrement(Os, "codigo_os", { entidade: "os" });
 const auth = require("../middlewares/auth");
 const checkPermission = require("../middlewares/checkPermission");
 const mecanicoController = require("../controllers/mecanicoController");

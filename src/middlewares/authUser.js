@@ -26,7 +26,7 @@ const authUser = async (req, res, next) => {
     const checkPermission = (permissions, permPath) => {
       // Remove 'permissao.' do início do path se existir
       const cleanPath = permPath.replace(/^permissao\./, '');
-      const parts = cleanPath.split('.');;
+      const parts = cleanPath.split('.');
 
       // Percorre o array de permissions
       for (const permGroup of permissions) {

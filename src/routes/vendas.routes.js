@@ -1,9 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const vendaController = require("../controllers/vendasController");
+const autoIncrement = require("../middlewares/autoIncrement");
+const Venda = require("../models/vendas.model");
 const autoIncrementreceber = require("../middlewares/autoIncrementreceber");
 const autoIncrementMovimento = require("../middlewares/autoIncrementMovimento");
-const autoIncrementVendas = require("../middlewares/autoIncrementVendas");
+
+// Vendas discrimina a sequência por 'origem' (mesmo comportamento do middleware antigo).
+const autoIncrementVendas = autoIncrement(Venda, "codigo_venda", {
+  entidade: "venda",
+  extraScopeBodyField: "origem",
+});
 const auth = require("../middlewares/auth");
 const checkPermission = require("../middlewares/checkPermission");
 const ClientesController = require("../controllers/clientesController");

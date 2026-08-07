@@ -184,7 +184,6 @@ const OsSchema = new mongoose.Schema({
   anoVeiculo: { type: String },
   corVeiculo: { type: String },
   observacaoVeiculo: { type: String },
-  observacaoVeiculo: { type: String },
   itens: [itemOsSchema],
   servicos: [servicosOsSchema],
   forma_pagamento: [pagamentoOsSchema],
@@ -192,4 +191,10 @@ const OsSchema = new mongoose.Schema({
   observacaoGeral: { type: String },
 });
 
+// Índices compostos para queries frequentes
+OsSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_os: 1 });
+OsSchema.index({ codigo_loja: 1, codigo_empresa: 1, status: 1 });
+OsSchema.index({ dataAbertura: -1 });
+
 module.exports = mongoose.model("Os", OsSchema);
+

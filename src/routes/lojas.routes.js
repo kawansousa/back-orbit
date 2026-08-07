@@ -2,12 +2,12 @@ const express = require("express");
 const router = express.Router();
 const lojasController = require("../controllers/lojasController");
 const incrementarCodigos = require("../middlewares/incrementarCodigos");
-const auth = require("../middlewares/auth");
 const checkPermission = require("../middlewares/checkPermission");
+const auth = require("../middlewares/auth");
 
 router.post(
-  "/", 
-  incrementarCodigos, 
+  "/",
+  incrementarCodigos,
   lojasController.createLoja
 );
 
@@ -22,7 +22,7 @@ router.get(
   auth,
   checkPermission("empresa:ler"),
   lojasController.buscarEmpresaByCodigoEmpresa
-)
+);
 
 router.post(
   "/empresa",
@@ -37,6 +37,7 @@ router.put(
   auth,
   checkPermission("empresa:atualizar"),
   lojasController.updateEmpresa
-)
+);
 
 module.exports = router;
+

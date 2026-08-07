@@ -5,9 +5,15 @@ const auth = require("../middlewares/auth");
 const checkPermission = require("../middlewares/checkPermission");
 const roleController = require("../controllers/roleController");
 
+// ─── Rotas públicas (sem auth) ──────────────────────────────
 router.post("/login", userController.loginUser);
+router.post("/refresh-token", userController.refreshToken);
+router.post("/logout", userController.logout);
 
+// ─── Rotas protegidas ───────────────────────────────────────
 router.use(auth);
+
+router.post("/logout-all", userController.logoutAll);
 
 router.get(
   "/", 

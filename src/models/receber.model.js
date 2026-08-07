@@ -92,4 +92,10 @@ const ReceberSchema = new mongoose.Schema({
   },
 });
 
+// Índices compostos para queries frequentes
+ReceberSchema.index({ codigo_loja: 1, codigo_empresa: 1, documento_origem: 1, origem: 1 });
+ReceberSchema.index({ codigo_loja: 1, codigo_empresa: 1, status: 1 });
+ReceberSchema.index({ data_vencimento: 1 });
+
 module.exports = mongoose.model("Receber", ReceberSchema);
+

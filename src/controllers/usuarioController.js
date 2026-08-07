@@ -1,11 +1,58 @@
 const User = require("../models/user.model");
 const { Role } = require("../models/role.model");
+const RefreshToken = require("../models/refreshToken.model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const logger = require("../utils/logger");
+
+// ─── Helpers ────────────────────────────────────────────────
+
+const ACCESS_TOKEN_EXPIRY = "15m";
+const REFRESH_TOKEN_EXPIRY_DAYS = 7;
+
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 minutos
+const REFRESH_TOKEN_MAX_AGE = REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000; // 7 dias
+
+// Opções de cookie: em produção é cross-site (app em domínio diferente da API),
+// então precisa de sameSite "none" + secure. Em dev, "lax" sobre http funciona.
+function cookieOptions(maxAge) {
+  const isProd = process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    maxAge,
+  };
+}
+
+function generateAccessToken(user) {
+  const payload = {
+    id: user._id,
+    email: user.email,
+    permissions: user.role ? user.role.permissions : [],
+    acesso_loja: user.acesso_loja
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+}
+
+async function generateRefreshToken(userId) {
+  const token = crypto.randomBytes(40).toString("hex");
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
+
+  await RefreshToken.create({ token, userId, expiresAt });
+
+  return token;
+}
+
+// ─── Login ──────────────────────────────────────────────────
 
 exports.loginUser = async (req, res) => {
   try {
     const { email, senha } = req.body;
+
     const user = await User.findOne({ email }).populate("role");
 
     if (!user) {
@@ -16,31 +63,145 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: "Usuário inativo. Contate o administrador." });
     }
 
-    if (user.role && user.role.status === 'inativo') {
+    if (user.role && user.role.status === "inativo") {
       return res.status(401).json({ message: "Sua função de usuário está inativa. Contate o administrador." });
     }
 
     const isMatch = await bcrypt.compare(senha, user.password);
+
     if (!isMatch) {
       return res.status(400).json({ message: "Credenciais inválidas" });
     }
 
-    const payload = {
-      id: user._id,
-      email: user.email,
-      permissions: user.role ? user.role.permissions : [],
-    };
+    const accessToken = generateAccessToken(user);
+    const refreshToken = await generateRefreshToken(user._id);
 
-    const token = jwt.sign(payload, process.env.JWT_SECRET);
     const userResponse = user.toObject();
     delete userResponse.password;
 
-    res.status(200).json({ token, user: userResponse });
+    // ACCESS TOKEN COOKIE
+    res.cookie("accessToken", accessToken, cookieOptions(ACCESS_TOKEN_MAX_AGE));
+
+    // REFRESH TOKEN COOKIE
+    res.cookie("refreshToken", refreshToken, cookieOptions(REFRESH_TOKEN_MAX_AGE));
+
+    res.status(200).json({
+      message: "Login realizado com sucesso",
+      token: accessToken,
+      refreshToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: {
+          name: user.role ? user.role.name : null,
+          permissions: user.role ? user.role.permissions : []
+        },
+        acesso_loja: user.acesso_loja
+      }
+    });
+
   } catch (err) {
-    console.error("Erro no login:", err);
+    logger.error({ err }, "Erro no login");
     res.status(500).json({ message: "Erro interno, tente novamente." });
   }
 };
+
+// ─── Refresh Token ──────────────────────────────────────────
+
+exports.refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    console.log("Refresh token recebido:", refreshToken);
+
+    if (!refreshToken) {
+      return res.status(401).json({ error: "Refresh token não encontrado" });
+    }
+
+    // Busca o refresh token no banco
+    const storedToken = await RefreshToken.findOne({ token: refreshToken });
+
+    if (!storedToken) {
+      return res.status(401).json({ message: "Refresh token inválido." });
+    }
+
+    // Verifica se expirou
+    if (storedToken.expiresAt < new Date()) {
+      await RefreshToken.deleteOne({ _id: storedToken._id });
+      return res.status(401).json({ message: "Refresh token expirado. Faça login novamente." });
+    }
+
+    // Busca o usuário
+    const user = await User.findById(storedToken.userId).populate("role");
+
+    if (!user) {
+      await RefreshToken.deleteOne({ _id: storedToken._id });
+      return res.status(401).json({ message: "Usuário não encontrado." });
+    }
+
+    if (user.status === "inativo") {
+      await RefreshToken.deleteMany({ userId: user._id });
+      return res.status(401).json({ message: "Usuário inativo. Contate o administrador." });
+    }
+
+    // Rotação: deleta o token antigo e gera um novo
+    await RefreshToken.deleteOne({ _id: storedToken._id });
+
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = await generateRefreshToken(user._id);
+
+    res.cookie("accessToken", newAccessToken, cookieOptions(ACCESS_TOKEN_MAX_AGE));
+    res.cookie("refreshToken", newRefreshToken, cookieOptions(REFRESH_TOKEN_MAX_AGE));
+
+    res.status(200).json({
+      token: newAccessToken,
+      refreshToken: newRefreshToken,
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+    });
+  } catch (err) {
+    logger.error({ err }, "Erro ao renovar token");
+    res.status(500).json({ message: "Erro interno, tente novamente." });
+  }
+};
+
+// ─── Logout ─────────────────────────────────────────────────
+
+exports.logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+
+    if (refreshToken) {
+      await RefreshToken.deleteOne({ token: refreshToken });
+    }
+
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+
+    res.status(200).json({ message: "Logout realizado com sucesso." });
+  } catch (err) {
+    logger.error({ err }, "Erro no logout");
+    res.status(500).json({ message: "Erro interno, tente novamente." });
+  }
+};
+
+// ─── Logout de todas as sessões ─────────────────────────────
+
+exports.logoutAll = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await RefreshToken.deleteMany({ userId });
+
+    res.status(200).json({
+      message: "Todas as sessões foram encerradas.",
+      sessoesEncerradas: result.deletedCount,
+    });
+  } catch (err) {
+    logger.error({ err }, "Erro ao encerrar todas as sessões");
+    res.status(500).json({ message: "Erro interno, tente novamente." });
+  }
+};
+
+// ─── CRUD de Usuários (mantido) ─────────────────────────────
 
 exports.createUser = async (req, res) => {
   const { name, email, password, acesso_loja, roleId } = req.body;
@@ -170,7 +331,7 @@ exports.getUsers = async (req, res) => {
       data: users,
     });
   } catch (error) {
-    console.error("Erro na busca de usuários:", error);
+    logger.error({ error }, "Erro na busca de usuários");
     return res.status(500).json({ error: error.message });
   }
 };
@@ -252,15 +413,16 @@ exports.inactiveUser = async (req, res) => {
     const requester = await User.findById(requesterId).populate('role');
 
     if (!userToInactivate || !requester) {
-        return res.status(404).json({ error: "Usuário não encontrado." });
+      return res.status(404).json({ error: "Usuário não encontrado." });
     }
 
     if (userToInactivate.role && requester.role && userToInactivate.role.id === requester.role.id) {
-        return res.status(403).json({
-            error: "Ação não permitida. Você não pode desativar um usuário com a mesma função.",
-        });
+      return res.status(403).json({
+        error: "Ação não permitida. Você não pode desativar um usuário com a mesma função.",
+      });
     }
 
+    // Inativa o usuário e revoga todos os refresh tokens dele
     const inactivatedUser = await User.findOneAndUpdate(
       { _id },
       { status: "inativo" },
@@ -272,6 +434,8 @@ exports.inactiveUser = async (req, res) => {
         error: "ID não encontrado",
       });
     }
+
+    await RefreshToken.deleteMany({ userId: _id });
 
     res.status(200).json({
       message: "Status do usuario atualizado para inativo",

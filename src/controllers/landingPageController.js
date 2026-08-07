@@ -1,4 +1,4 @@
-const LandingPage = require("../models/ladingPage.model");
+const LandingPage = require("../models/landingPage.model");
 
 exports.createLadingPage = async (req, res) => {
   const {

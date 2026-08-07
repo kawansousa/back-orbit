@@ -533,27 +533,27 @@ exports.getOsById = async (req, res) => {
       });
     }
 
-    const Os = await Os.findOne({
+    const os = await Os.findOne({
       _id: req.params.id,
       codigo_loja,
       codigo_empresa,
     });
 
-    if (!Os) {
+    if (!os) {
       return res.status(404).json({
-        error: "Os não encontrado para essa loja e empresa.",
+        error: "OS não encontrada para essa loja e empresa.",
       });
     }
 
     const cidade = await Cidades.findOne({
-      codigo: parseInt(Os.endereco.cidade, 10),
+      codigo: parseInt(os.endereco.cidade, 10),
     });
 
     if (cidade) {
-      Os.endereco.cidade = cidade.nome;
+      os.endereco.cidade = cidade.nome;
     }
 
-    res.status(200).json(Os);
+    res.status(200).json(os);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

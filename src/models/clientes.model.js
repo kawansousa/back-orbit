@@ -87,9 +87,11 @@ const clienteSchema = new mongoose.Schema({
   },
 });
 
-// Índice composto para garantir que o código do cliente seja único por loja e empresa
-// clienteSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_cliente: 1 }, { unique: true });
+// Índices compostos para queries frequentes
+clienteSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_cliente: 1 });
+clienteSchema.index({ codigo_loja: 1, codigo_empresa: 1, nome: 1 });
 
 const Cliente = mongoose.model('Cliente', clienteSchema);
 
 module.exports = Cliente;
+

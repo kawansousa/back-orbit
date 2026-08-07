@@ -10,28 +10,36 @@
   },
   "author": "kawan",
   "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
-    "express-validator": "^7.2.1",
-    "nodemon": "^3.1.7",
-    "sucrase": "^3.35.0"
+    "nodemon": "^3.1.7"
   },
   "dependencies": {
     "@sparticuz/chromium": "^131.0.0",
     "bcrypt": "^5.1.1",
     "chrome-aws-lambda": "^10.1.0",
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "cpf-cnpj-validator": "^1.0.3",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.21.1",
+    "express-rate-limit": "^8.3.1",
     "express-validator": "^7.2.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.30.1",
     "mongoose": "^8.8.1",
     "mongoose-sequence": "^6.0.1",
     "pdfkit": "^0.15.1",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
     "pug": "^3.0.3",
     "puppeteer": "^23.9.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
   }
 }

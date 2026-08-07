@@ -181,6 +181,10 @@ const vendaSchema = new mongoose.Schema({
 
 });
 
+// Índices compostos para queries frequentes
+vendaSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_venda: 1 });
+vendaSchema.index({ codigo_loja: 1, codigo_empresa: 1, status: 1 });
+vendaSchema.index({ data_emissao: -1 });
 
 const Venda = mongoose.model('Venda', vendaSchema);
 

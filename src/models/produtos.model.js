@@ -156,6 +156,10 @@ const produtoSchema = new mongoose.Schema(
   }
 );
 
+// Índices compostos para queries frequentes
+produtoSchema.index({ codigo_loja: 1, codigo_empresa: 1, codigo_produto: 1 });
+produtoSchema.index({ codigo_loja: 1, codigo_empresa: 1, descricao: 1 });
+
 const Produto = mongoose.model("Produto", produtoSchema);
 
 module.exports = Produto;
